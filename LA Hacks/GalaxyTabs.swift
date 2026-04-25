@@ -675,9 +675,13 @@ struct NovaAITab: View {
         isProcessing = true
         outputText = ""
         downloadProgress = 0.0
+        
+        let thinkingInstrcutions = "Do not use thinking tokens.";
+        
+        let completePrompt = "System Prompt:\n" + thinkingInstrcutions + "\n\n" + "User Prompt:\n" + userPrompt;
 
         runModel(
-            prompt: userPrompt,
+            prompt: completePrompt,
             onDownload: { progress in
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
