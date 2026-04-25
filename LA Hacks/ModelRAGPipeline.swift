@@ -126,7 +126,9 @@ enum RAGRetriever {
             constellation.course
         ].joined(separator: " ").lowercased()
 
-        let matchCount = tokens.filter { target.contains($0) }.count
+        let stopwords: Set<String> = ["a","an","the","is","are","do","how","what","i","me","my","of","to","and","or","in","it"]
+
+        let matchCount = tokens.filter { !stopwords.contains($0) && target.contains($0) }.count
         var score = Float(matchCount)
 
         // Active-context bonus
@@ -134,5 +136,116 @@ enum RAGRetriever {
         if star.id == context.activeStarID { score += 3.0 }
 
         return score
+    }
+}
+
+// MARK: - RAG Pipeline
+
+enum RAGPipeline {
+
+    // MARK: - System Prompt Template
+
+    private static func buildSystemPrompt(chunks: [RAGChunk], context: PipelineContext) -> String {
+        var prompt = """
+        Role: You are "Nova," a friendly, high-energy, and patient AI tutor for elementary school students (ages 6–11). Your mission is to help students understand their schoolwork using the documents they upload.
+        Tone & Personality:
+        * Encouraging: Use phrases like "You've got this!", "Great try!", and "We're becoming experts together!"
+        * Simple: Use short sentences. Avoid "big" academic words unless you are defining them.
+        * Fun: Use occasional emojis (like 🚀, ✨, 🍎) and relatable analogies (e.g., comparing gravity to invisible glue).
+        * Resilient: If a student gets an answer wrong, never say "That is incorrect." Instead, say "That was a super guess! Let's look at it another way."
+        Core Guidelines:
+        1. Reference the File: Use the uploaded curriculum as your "Source of Truth." If a student asks something not in the file, answer generally but try to bring it back to their schoolwork.
+        2. The "Check-In" Rule: After explaining a small concept, ask a quick, fun question to make sure the student is following.
+        3. Frustration Detection: If the student says "I don't know," "this is hard," or uses sad emojis, stop the lesson. Offer a "Brain Break" or a funny fact before trying a simpler explanation.
+        4. Conciseness: Never write more than 3–4 sentences at a time. Elementary students lose focus with "walls of text."
+        Interaction Style:
+        * Step-by-Step: Don't give the whole answer at once. Lead the student to the answer by asking guiding questions.
+        Formatting: Use bolding for important vocabulary words. Use bullet points for lists.
+
+        The student's name is \(context.studentName). 🌟
+        """
+
+        // Inject RAG context if available
+        if !chunks.isEmpty {
+            prompt += "\n\n## 📚 Curriculum Knowledge (Source of Truth)\n"
+            prompt += "Use ONLY the following curriculum content to answer. Stay grounded in this material:\n\n"
+
+            for chunk in chunks {
+                prompt += """
+                Subject: \(chunk.course)
+                Topic: \(chunk.constellationName) — \(chunk.starLabel)
+                Summary: \(chunk.blurb)
+                Story: \(chunk.skyStory)
+
+                """
+            }
+        }
+
+        // Active focus context
+        if let constellationID = context.activeConstellationID {
+            prompt += "\nThe student is currently studying: \(constellationID)"
+            if let starID = context.activeStarID {
+                prompt += ", specifically: \(starID)"
+            }
+            prompt += ". Try to relate your answer back to this topic.\n"
+        }
+
+        // Conversation history
+        if !context.history.isEmpty {
+            prompt += "\n## Recent Conversation\n"
+            for message in context.history.suffix(6) {
+                let roleLabel = message.role == .user ? "\(context.studentName)" : "Nova"
+                prompt += "\(roleLabel): \(message.content)\n"
+            }
+        }
+
+        prompt += "\nNow respond to \(context.studentName)'s message below. Remember: 3–4 sentences max! 🚀\n"
+        return prompt
+    }
+
+    // MARK: - Run Pipeline
+
+    /// Retrieves RAG chunks, builds an enhanced system prompt, and calls runModel.
+    static func run(
+        userQuery: String,
+        context: PipelineContext,
+        onDownload: @escaping (Float) -> Void,
+        onStream: @escaping (String) -> Void,
+        onComplete: @escaping (PipelineResult) -> Void
+    ) {
+        // 1. Retrieve relevant chunks
+        let chunks = RAGRetriever.retrieve(query: userQuery, context: context)
+
+        // 2. Build enhanced system prompt
+        let systemPrompt = buildSystemPrompt(chunks: chunks, context: context)
+
+        // 3. Combine into a single prompt string for the model
+        let fullPrompt = """
+        <system>
+        \(systemPrompt)
+        </system>
+
+        <user>
+        \(userQuery)
+        </user>
+
+        <assistant>
+        """
+
+        // 4. Call runModel
+        runModel(
+            prompt: fullPrompt,
+            onDownload: onDownload,
+            onStream: onStream,
+            onComplete: { error in
+                let status: PipelineResult.Status = error == nil ? .success : .modelError
+                onComplete(PipelineResult(
+                    text: userQuery, // caller should track streamed text separately
+                    status: status,
+                    ragChunksUsed: chunks,
+                    error: error
+                ))
+            }
+        )
     }
 }
