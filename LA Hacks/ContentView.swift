@@ -18,9 +18,6 @@ struct ContentView: View {
         if !onboarded {
             Onboard()
         } else {
-            Button("Restart") {
-                onboarded = false
-            }
             LearningGalaxyView()
         }
     }
