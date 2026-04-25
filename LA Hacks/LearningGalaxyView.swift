@@ -11,7 +11,7 @@ import Combine
 // MARK: - Tab routing
 
 enum GalaxyTab: String, Hashable {
-    case galaxy, study, paths, profile
+    case galaxy, study, paths, nova, profile
 }
 
 /// App-level state shared between Galaxy + tabs (so an upload-grown
@@ -73,6 +73,9 @@ struct LearningGalaxyView: View {
                 BottomNav(active: tab, onChange: { tab = $0 })
             case .paths:
                 PathsTab()
+                BottomNav(active: tab, onChange: { tab = $0 })
+            case .nova:
+                NovaAITab()
                 BottomNav(active: tab, onChange: { tab = $0 })
             case .profile:
                 YouTab()

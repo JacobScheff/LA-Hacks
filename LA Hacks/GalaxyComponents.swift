@@ -206,7 +206,8 @@ struct BottomNav: View {
         .init(id: .galaxy,  label: "Galaxy", icon: "🌌"),
         .init(id: .study,   label: "Quests", icon: "🎯"),
         .init(id: .paths,   label: "Trips",  icon: "🚀"),
-        .init(id: .profile, label: "Me",     icon: "🦊"),
+        .init(id: .nova,    label: "Nova",   icon: "🦊"),
+        .init(id: .profile, label: "Me",     icon: "👤"),
     ]
 
     var body: some View {

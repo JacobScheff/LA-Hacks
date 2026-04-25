@@ -508,6 +508,194 @@ private struct PathStrip: View {
     }
 }
 
+// MARK: - Nova AI (NovaAITab)
+
+struct NovaAITab: View {
+    @State private var prompt: String = ""
+    @State private var outputText: String = ""
+    @State private var isProcessing: Bool = false
+    @State private var downloadProgress: Float = 0.0
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                TabHeader(
+                    kicker: "🤖 POWERED BY GEMMA",
+                    title: "Ask Nova",
+                    emoji: "🦊",
+                    subtitle: "Chat with your AI tutor!"
+                )
+
+                promptCard
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 16)
+
+                if isProcessing && downloadProgress > 0 && downloadProgress < 1.0 {
+                    downloadCard
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                }
+
+                if !outputText.isEmpty {
+                    responseCard
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 16)
+                }
+            }
+            .padding(.top, 70)
+            .padding(.bottom, 110)
+        }
+        .scrollIndicators(.hidden)
+        .foregroundColor(.white)
+    }
+
+    private var promptCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("💬 YOUR QUESTION")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundColor(.white.opacity(0.65))
+
+            TextEditor(text: $prompt)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: 100)
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.black.opacity(0.3))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color(hex: 0xFFE066, opacity: 0.35), lineWidth: 2)
+                )
+                .overlay(alignment: .topLeading) {
+                    if prompt.isEmpty {
+                        Text("Ask Nova anything… explain a topic, help with homework…")
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundColor(.white.opacity(0.4))
+                            .padding(20)
+                            .allowsHitTesting(false)
+                    }
+                }
+
+            Button(action: runLLM) {
+                HStack(spacing: 8) {
+                    if isProcessing {
+                        ProgressView()
+                            .tint(Color(hex: 0x1A0B40))
+                            .scaleEffect(0.85)
+                        Text("Nova is thinking…")
+                    } else {
+                        Text("🚀 Ask Nova!")
+                    }
+                }
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundColor(Color(hex: 0x1A0B40))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(
+                        colors: isProcessing
+                            ? [Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
+                            : [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .shadow(color: Color(hex: 0xFF8A4C, opacity: isProcessing ? 0.2 : 0.5), radius: 16, x: 0, y: 6)
+            }
+            .buttonStyle(.plain)
+            .disabled(isProcessing || prompt.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
+        .sCard(padding: EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+    }
+
+    private var downloadCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("⬇️").font(.system(size: 14))
+                Text("Downloading Nova's brain…")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                Spacer()
+                Text(String(format: "%.0f%%", downloadProgress * 100))
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: 0xFFE066))
+            }
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.1))
+                    Capsule()
+                        .fill(LinearGradient(
+                            colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                            startPoint: .leading, endPoint: .trailing
+                        ))
+                        .frame(width: g.size.width * CGFloat(downloadProgress))
+                        .shadow(color: Color(hex: 0xFFE066, opacity: 0.6), radius: 4)
+                }
+            }
+            .frame(height: 8)
+            Text("This only happens once — Nova will be much faster next time!")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.55))
+        }
+        .sCard(stroke: Color(hex: 0xFFE066, opacity: 0.3), padding: EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
+    }
+
+    private var responseCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("🦊").font(.system(size: 20))
+                Text("NOVA SAYS")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(hex: 0x5EE7FF))
+                Spacer()
+                if isProcessing {
+                    Text("streaming…")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(Color(hex: 0xFFE066, opacity: 0.7))
+                }
+            }
+            Text(outputText)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .foregroundColor(.white)
+                .lineSpacing(3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .sCard(
+            stroke: Color(hex: 0x5EE7FF, opacity: 0.35),
+            padding: EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)
+        )
+    }
+
+    private func runLLM() {
+        guard !isProcessing else { return }
+        let userPrompt = prompt
+        isProcessing = true
+        outputText = ""
+        downloadProgress = 0.0
+
+        runModel(
+            prompt: userPrompt,
+            onDownload: { progress in
+                DispatchQueue.main.async { self.downloadProgress = progress }
+            },
+            onStream: { currentText in
+                DispatchQueue.main.async { self.outputText = currentText }
+            },
+            onComplete: { error in
+                DispatchQueue.main.async {
+                    self.isProcessing = false
+                    if let error = error {
+                        self.outputText = "Oops! Nova had a problem: \(error.localizedDescription)"
+                    }
+                }
+            }
+        )
+    }
+}
+
 // MARK: - Me (YouTab)
 
 struct YouTab: View {
