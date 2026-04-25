@@ -50,7 +50,7 @@ struct TopHeader: View {
                 }
             }
             .padding(.horizontal, 14)
-            .padding(.top, 56)
+            .padding(.top, 44)
 
             xpBar
                 .padding(.horizontal, 14)
@@ -211,59 +211,71 @@ struct BottomNav: View {
     ]
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 0) {
             ForEach(items) { it in
                 let isActive = it.id == active
-                Button { onChange(it.id) } label: {
-                    VStack(spacing: 4) {
-                        glassIcon(it.icon, isActive: isActive)
+                Button {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.75)) {
+                        onChange(it.id)
+                    }
+                } label: {
+                    VStack(spacing: 3) {
+                        Text(it.icon)
+                            .font(.system(size: isActive ? 25 : 22))
+                            .scaleEffect(isActive ? 1.05 : 1.0)
                         Text(it.label)
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
                             .tracking(0.2)
-                            .foregroundColor(isActive ? Color(hex: 0xFFE066) : .white.opacity(0.58))
+                            .foregroundColor(isActive ? Color(hex: 0xFFE066) : .white.opacity(0.52))
                     }
-                    .offset(y: isActive ? -3 : 0)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background(
+                        Group {
+                            if isActive {
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .fill(Color(hex: 0xFFE066, opacity: 0.16))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .stroke(Color(hex: 0xFFE066, opacity: 0.45), lineWidth: 1)
+                                    )
+                                    .shadow(color: Color(hex: 0xFFE066, opacity: 0.25), radius: 10, x: 0, y: 3)
+                                    .padding(.horizontal, 4)
+                            }
+                        }
+                    )
                     .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isActive)
                 }
                 .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .padding(.bottom, 6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-        .padding(.bottom, 28)
-    }
-
-    @ViewBuilder
-    private func glassIcon(_ icon: String, isActive: Bool) -> some View {
-        ZStack {
-            if isActive {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color(hex: 0xFFE066, opacity: 0.26), Color(hex: 0xFF8AD8, opacity: 0.20)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-            }
-            Text(icon)
-                .font(.system(size: 23))
-        }
-        .frame(width: 54, height: 48)
-        .glassEffect(
-            isActive ? Glass.regular.tint(Color(hex: 0xFFE066, opacity: 0.18)) : Glass.regular,
-            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-        )
+        .padding(.horizontal, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .glassEffect(Glass.regular, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    isActive ? Color(hex: 0xFFE066, opacity: 0.65) : Color.white.opacity(0.10),
-                    lineWidth: 1.5
-                )
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(Color.white.opacity(0.14), lineWidth: 1)
         )
-        .shadow(
-            color: isActive ? Color(hex: 0xFFE066, opacity: 0.40) : .black.opacity(0.20),
-            radius: isActive ? 14 : 5, x: 0, y: isActive ? 5 : 2
+        .padding(.horizontal, 16)
+        .padding(.bottom, 28)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .gesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { v in
+                    guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                    if let idx = items.firstIndex(where: { $0.id == active }) {
+                        if v.translation.width < -40 && idx < items.count - 1 {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                onChange(items[idx + 1].id)
+                            }
+                        } else if v.translation.width > 40 && idx > 0 {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                onChange(items[idx - 1].id)
+                            }
+                        }
+                    }
+                }
         )
     }
 }
@@ -299,7 +311,7 @@ struct SkillSheet: View {
     let onClose: () -> Void
     let onTrain: (StarNode) -> Void
 
-    @State private var sheetFraction: CGFloat = 0.64
+    @State private var sheetFraction: CGFloat = 0.70
     @GestureState private var handleDrag: CGFloat = 0  // upward = negative
 
     private var palette: StarPalette { node.status.palette }
@@ -366,7 +378,11 @@ struct SkillSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 0)
+            // Tapping above the sheet dismisses it
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture { onClose() }
             sheet
         }
         .ignoresSafeArea(edges: .bottom)
@@ -374,51 +390,39 @@ struct SkillSheet: View {
 
     private var sheet: some View {
         VStack(spacing: 0) {
-            // Drag handle — drag up to expand, tap to close
+            // Visual drag handle only (no tap gesture — tap outside instead)
             Capsule()
                 .fill(Color.white.opacity(0.3))
                 .frame(width: 44, height: 5)
                 .padding(.top, 12)
                 .padding(.bottom, 14)
                 .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .updating($handleDrag) { v, state, _ in state = v.translation.height }
-                        .onEnded { v in
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                                sheetFraction = v.translation.height < -50 ? 1.0 : 0.64
-                            }
-                        }
-                )
-                .onTapGesture { onClose() }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    headerRow
+            // Content laid out flat — dragging the sheet moves it, not a scroll view
+            VStack(alignment: .leading, spacing: 0) {
+                headerRow
+                    .padding(.bottom, 16)
+                novaCard
+                    .padding(.bottom, 12)
+                statTiles
+                    .padding(.bottom, 16)
+                if !related.isEmpty {
+                    relatedSection
                         .padding(.bottom, 16)
-                    novaCard
-                        .padding(.bottom, 12)
-                    statTiles
-                        .padding(.bottom, 16)
-                    if !related.isEmpty {
-                        relatedSection
-                            .padding(.bottom, 16)
-                    }
-                    if node.status == .locked {
-                        lockedCTA
-                    } else {
-                        primaryCTA
-                        Text("⏱ About \(minutes) min · Mini-games & quizzes")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundColor(.white.opacity(0.6))
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 10)
-                    }
                 }
-                .padding(.horizontal, 18)
-                .padding(.bottom, 30)
+                if node.status == .locked {
+                    lockedCTA
+                } else {
+                    primaryCTA
+                    Text("⏱ About \(minutes) min · Mini-games & quizzes")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.6))
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 10)
+                }
             }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 30)
         }
         .containerRelativeFrame(.vertical) { length, _ in
             let live = sheetFraction - handleDrag / length
@@ -432,6 +436,19 @@ struct SkillSheet: View {
                 .ignoresSafeArea(edges: .bottom)
         )
         .shadow(color: palette.glow, radius: 20, x: 0, y: -10)
+        .gesture(
+            DragGesture(minimumDistance: 10)
+                .updating($handleDrag) { v, state, _ in state = v.translation.height }
+                .onEnded { v in
+                    if v.translation.height > 80 {
+                        onClose()
+                    } else {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                            sheetFraction = v.translation.height < -50 ? 1.0 : 0.70
+                        }
+                    }
+                }
+        )
     }
 
     private var sheetBackground: some View {

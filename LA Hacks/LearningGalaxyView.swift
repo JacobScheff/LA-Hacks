@@ -114,24 +114,39 @@ struct LearningGalaxyView: View {
         )
     }
 
-    /// Background gradients matching `Learning Galaxy.html`'s app shell.
+    /// Background gradients — richer multi-stop nebula washes.
     private var backdrop: some View {
         ZStack {
-            Color(hex: 0x08041A)
+            Color(hex: 0x07021A)
+            // Top-left magenta nebula
             RadialGradient(
-                colors: [Color(hex: 0xFF8AD8, opacity: 0.32), .clear],
-                center: UnitPoint(x: 0.30, y: 0.15),
-                startRadius: 0, endRadius: 520
+                colors: [Color(hex: 0xFF5DC8, opacity: 0.52), Color(hex: 0xC030A0, opacity: 0.22), .clear],
+                center: UnitPoint(x: 0.22, y: 0.10),
+                startRadius: 0, endRadius: 500
             )
+            // Bottom-right cyan nebula
             RadialGradient(
-                colors: [Color(hex: 0x5EE7FF, opacity: 0.28), .clear],
-                center: UnitPoint(x: 0.75, y: 0.80),
-                startRadius: 0, endRadius: 520
+                colors: [Color(hex: 0x28E8FF, opacity: 0.46), Color(hex: 0x08B8D8, opacity: 0.16), .clear],
+                center: UnitPoint(x: 0.80, y: 0.82),
+                startRadius: 0, endRadius: 460
             )
+            // Center deep violet
             RadialGradient(
-                colors: [Color(hex: 0xA855F7, opacity: 0.22), .clear],
-                center: UnitPoint(x: 0.50, y: 0.50),
-                startRadius: 0, endRadius: 600
+                colors: [Color(hex: 0x8030E8, opacity: 0.44), Color(hex: 0x5010C0, opacity: 0.14), .clear],
+                center: UnitPoint(x: 0.52, y: 0.48),
+                startRadius: 0, endRadius: 580
+            )
+            // Top-right warm orange accent
+            RadialGradient(
+                colors: [Color(hex: 0xFF8020, opacity: 0.26), .clear],
+                center: UnitPoint(x: 0.92, y: 0.06),
+                startRadius: 0, endRadius: 260
+            )
+            // Bottom-left indigo accent
+            RadialGradient(
+                colors: [Color(hex: 0x2040D8, opacity: 0.30), .clear],
+                center: UnitPoint(x: 0.06, y: 0.92),
+                startRadius: 0, endRadius: 300
             )
         }
     }
@@ -233,19 +248,24 @@ struct GalaxyScreen: View {
                     )
                 }
                 .contentShape(Rectangle())
-                .simultaneousGesture(combinedGesture)
+                .simultaneousGesture(makeGesture(W: W, H: H))
 
-                // Top fade so labels behind header stay legible
-                LinearGradient(
-                    colors: [
-                        Color(hex: 0x08041A, opacity: 1.0),
-                        Color(hex: 0x08041A, opacity: 0.92),
-                        Color(hex: 0x08041A, opacity: 0.6),
-                        Color(hex: 0x08041A, opacity: 0.0),
-                    ],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .frame(height: 250)
+                // Top fade — frosted glass blur + purple-tinted gradient
+                ZStack(alignment: .top) {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .frame(height: 120)
+                    LinearGradient(
+                        colors: [
+                            Color(hex: 0x1E0848, opacity: 0.88),
+                            Color(hex: 0x120430, opacity: 0.68),
+                            Color(hex: 0x08041A, opacity: 0.38),
+                            Color(hex: 0x08041A, opacity: 0.0),
+                        ],
+                        startPoint: .top, endPoint: .bottom
+                    )
+                    .frame(height: 250)
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)
 
@@ -373,25 +393,34 @@ struct GalaxyScreen: View {
 
     // MARK: Gestures
 
-    private var combinedGesture: some Gesture {
+    private func clampOffset(tx: CGFloat, ty: CGFloat, scale: CGFloat, W: CGFloat, H: CGFloat) -> (CGFloat, CGFloat) {
+        let worldW: CGFloat = 1100
+        let worldH: CGFloat = 1660
+        let margin: CGFloat = 120
+        let clampedTx = max(margin - worldW * scale, min(W - margin, tx))
+        let clampedTy = max(margin - worldH * scale, min(H - margin, ty))
+        return (clampedTx, clampedTy)
+    }
+
+    private func makeGesture(W: CGFloat, H: CGFloat) -> some Gesture {
         SimultaneousGesture(
             DragGesture(minimumDistance: 4)
                 .onChanged { v in dragOffset = v.translation }
                 .onEnded { v in
-                    tx += v.translation.width
-                    ty += v.translation.height
-                    dragOffset = .zero
+                    let (cTx, cTy) = clampOffset(
+                        tx: tx + v.translation.width,
+                        ty: ty + v.translation.height,
+                        scale: scale, W: W, H: H
+                    )
+                    tx = cTx; ty = cTy; dragOffset = .zero
                 },
             MagnifyGesture()
                 .onChanged { v in
-                    // Anchor zoom to the pinch midpoint so the focal point stays fixed.
                     let focal = v.startLocation
                     let rawD = v.magnification
                     let newScale = max(0.35, min(2.5, scale * rawD))
-                    let d = newScale / scale      // clamped multiplier
+                    let d = newScale / scale
                     pinchDelta = d
-                    // Shift tx/ty so the world point under `focal` doesn't move:
-                    // newTx = focal.x * (1-d) + tx * d
                     pinchTxCorr = (focal.x - tx) * (1 - d)
                     pinchTyCorr = (focal.y - ty) * (1 - d)
                 }
@@ -400,12 +429,13 @@ struct GalaxyScreen: View {
                     let rawD = v.magnification
                     let newScale = max(0.35, min(2.5, scale * rawD))
                     let d = newScale / scale
-                    tx += (focal.x - tx) * (1 - d)
-                    ty += (focal.y - ty) * (1 - d)
-                    scale = newScale
-                    pinchDelta = 1.0
-                    pinchTxCorr = 0
-                    pinchTyCorr = 0
+                    let (cTx, cTy) = clampOffset(
+                        tx: tx + (focal.x - tx) * (1 - d),
+                        ty: ty + (focal.y - ty) * (1 - d),
+                        scale: newScale, W: W, H: H
+                    )
+                    tx = cTx; ty = cTy; scale = newScale
+                    pinchDelta = 1.0; pinchTxCorr = 0; pinchTyCorr = 0
                 }
         )
     }
@@ -733,19 +763,23 @@ struct SkyCanvas: View {
                     ctx.draw(label, at: CGPoint(x: n.x, y: chipY), anchor: .center)
                 }
 
-                // Label pill on focus / selection
-                let showLabel = isSelected || scale > 0.85
-                if showLabel {
+                // Label pill — fades in/out smoothly with zoom level
+                let labelAlpha: Double = isSelected
+                    ? 1.0
+                    : max(0.0, min(1.0, Double((scale - 0.72) / 0.18)))
+                if labelAlpha > 0.01 {
                     let labelText = "\(n.emoji) \(n.label)"
                     let chipH: CGFloat = 16
                     let approxW = max(48, CGFloat(labelText.count) * 5.6 + 18)
                     let chipY = n.y + bodyR + 10
                     let chipRect = CGRect(x: n.x - approxW/2, y: chipY - chipH/2, width: approxW, height: chipH)
-                    ctx.fill(
+                    var lctx = ctx
+                    lctx.opacity = labelAlpha
+                    lctx.fill(
                         Path(roundedRect: chipRect, cornerRadius: chipH/2),
                         with: .color(Color(hex: 0x0E1228, opacity: 0.82))
                     )
-                    ctx.stroke(
+                    lctx.stroke(
                         Path(roundedRect: chipRect, cornerRadius: chipH/2),
                         with: .color(n.status == .locked ? Color(hex: 0xB4BED2, opacity: 0.3) : Color.white.opacity(0.18)),
                         lineWidth: 0.7
@@ -753,7 +787,7 @@ struct SkyCanvas: View {
                     let label = Text(labelText)
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundColor(n.status == .locked ? Color(hex: 0xC8D2E6, opacity: 0.7) : .white)
-                    ctx.draw(label, at: CGPoint(x: n.x, y: chipY), anchor: .center)
+                    lctx.draw(label, at: CGPoint(x: n.x, y: chipY), anchor: .center)
                 }
             }
         }
