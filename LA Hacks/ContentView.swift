@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var outputText: String = ""
     @State private var isProcessing: Bool = false
     @State private var downloadProgress: Float = 0.0
+    @State private var prompt: String = ""
 
     var body: some View {
         VStack(spacing: 20) {
@@ -40,6 +41,10 @@ struct ContentView: View {
             .background(Color.gray.opacity(0.1))
             .cornerRadius(8)
             
+            TextField("Enter Prompt", text: $prompt)
+                .textFieldStyle(.roundedBorder)
+                .padding()
+            
             Button("Run") {
                 guard !isProcessing else { return }
                 
@@ -49,7 +54,7 @@ struct ContentView: View {
                 
                 // Call our simplified function
                 runModel(
-                    prompt: "Hello!",
+                    prompt: prompt,
                     onDownload: { progress in
                         // Update progress bar
                         DispatchQueue.main.async {
