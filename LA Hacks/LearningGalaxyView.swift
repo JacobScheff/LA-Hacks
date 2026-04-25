@@ -11,7 +11,7 @@ import Combine
 // MARK: - Tab routing
 
 enum GalaxyTab: String, Hashable {
-    case galaxy, study, paths, nova, profile
+    case galaxy, study, nova, profile
 }
 
 /// App-level state shared between Galaxy + tabs (so an upload-grown
@@ -53,56 +53,87 @@ struct LearningGalaxyView: View {
     @State private var lessonNode: StarNode?
     @StateObject private var state = GalaxyState()
 
-    var body: some View {
-        ZStack {
-            // Backdrop: deep purple-black with radial pink/cyan/purple washes
-            backdrop.ignoresSafeArea()
-            dustOverlay.ignoresSafeArea()
+    init() {
+        let bar = UITabBarAppearance()
+        bar.configureWithOpaqueBackground()
+        bar.backgroundColor = UIColor(red: 0.04, green: 0.02, blue: 0.11, alpha: 0.97)
+        bar.shadowColor = .clear
 
-            switch tab {
-            case .galaxy:
-                GalaxyScreen(
-                    onTabChange: { tab = $0 },
-                    onTrain: { trainingNode = $0 }
-                )
-                .environmentObject(state)
-            case .study:
-                StudyTab(onBeginQuest: {
-                    trainingNode = LearningGalaxyView.makeSyntheticNode(label: "Adding Slices", emoji: "🍕", status: .gap)
-                })
-                BottomNav(active: tab, onChange: { tab = $0 })
-            case .paths:
-                PathsTab()
-                BottomNav(active: tab, onChange: { tab = $0 })
-            case .nova:
-                NovaAITab()
-                BottomNav(active: tab, onChange: { tab = $0 })
-            case .profile:
-                YouTab()
-                BottomNav(active: tab, onChange: { tab = $0 })
+        let gold = UIColor(red: 1.0, green: 0.878, blue: 0.4, alpha: 1.0)
+        let dim  = UIColor.white.withAlphaComponent(0.28)
+
+        bar.stackedLayoutAppearance.normal.titleTextAttributes   = [.foregroundColor: dim]
+        bar.stackedLayoutAppearance.selected.titleTextAttributes = [.foregroundColor: gold]
+
+        UITabBar.appearance().standardAppearance   = bar
+        UITabBar.appearance().scrollEdgeAppearance = bar
+    }
+
+    var body: some View {
+        TabView(selection: $tab) {
+            Tab(value: GalaxyTab.galaxy) {
+                GalaxyScreen(onTrain: { trainingNode = $0 })
+                    .environmentObject(state)
+                    .ignoresSafeArea()
+            } label: {
+                Label { Text("Galaxy") } icon: { Image(uiImage: Self.emojiTabIcon("🌌")) }
             }
 
-            // Training overlay sits at root so it can launch from any tab.
+            Tab(value: GalaxyTab.study) {
+                StudyTab(onBeginQuest: {
+                    trainingNode = LearningGalaxyView.makeSyntheticNode(
+                        label: "Adding Slices", emoji: "🍕", status: .gap)
+                })
+                .background { tabBackground }
+            } label: {
+                Label { Text("Quests") } icon: { Image(uiImage: Self.emojiTabIcon("🎯")) }
+            }
+
+            Tab(value: GalaxyTab.nova) {
+                NovaAITab()
+                    .background { tabBackground }
+            } label: {
+                Label { Text("Nova") } icon: { Image(uiImage: Self.emojiTabIcon("🦊")) }
+            }
+
+            Tab(value: GalaxyTab.profile) {
+                YouTab()
+                    .background { tabBackground }
+            } label: {
+                Label { Text("Me") } icon: { Image(uiImage: Self.emojiTabIcon("👤")) }
+            }
+        }
+        .tint(Color(hex: 0xFFE066))
+        .preferredColorScheme(.dark)
+        .overlay {
             if let node = trainingNode {
                 TrainingOverlay(
                     node: node,
                     onClose: { trainingNode = nil },
                     onStart: { n in trainingNode = nil; lessonNode = n }
                 )
-                .zIndex(80)
                 .transition(.opacity)
             }
-
-            // Full lesson view
             if let node = lessonNode {
                 LessonView(node: node, onClose: { lessonNode = nil })
-                    .zIndex(95)
                     .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.3), value: trainingNode?.id)
         .animation(.easeOut(duration: 0.3), value: lessonNode?.id)
-        .preferredColorScheme(.dark)
+    }
+
+    static func emojiTabIcon(_ emoji: String) -> UIImage {
+        let size = CGSize(width: 32, height: 32)
+        let img = UIGraphicsImageRenderer(size: size).image { _ in
+            let attrs: [NSAttributedString.Key: Any] = [.font: UIFont.systemFont(ofSize: 26)]
+            let s = emoji as NSString
+            let sz = s.size(withAttributes: attrs)
+            s.draw(at: CGPoint(x: (size.width - sz.width) / 2,
+                               y: (size.height - sz.height) / 2),
+                   withAttributes: attrs)
+        }
+        return img.withRenderingMode(.alwaysOriginal)
     }
 
     static func makeSyntheticNode(label: String, emoji: String, status: StarStatus) -> StarNode {
@@ -112,6 +143,15 @@ struct LearningGalaxyView: View {
             x: 0, y: 0, status: status, size: 5,
             mastery: status == .mastered ? 1.0 : 0.4
         )
+    }
+
+    /// Shared background for non-galaxy tabs: nebula wash + star dust, full bleed.
+    private var tabBackground: some View {
+        ZStack {
+            backdrop
+            dustOverlay
+        }
+        .ignoresSafeArea()
     }
 
     /// Background gradients — richer multi-stop nebula washes.
@@ -181,7 +221,6 @@ struct LearningGalaxyView: View {
 
 struct GalaxyScreen: View {
     @EnvironmentObject var state: GalaxyState
-    let onTabChange: (GalaxyTab) -> Void
     let onTrain: (StarNode) -> Void
 
     // Pan + zoom state
@@ -210,15 +249,26 @@ struct GalaxyScreen: View {
     @State private var readingStep: Int = 0
     @State private var revealResult: GenerationResult?
 
+    // Telescope warp-in animation
+    private enum WarpPhase { case enter, exit, done }
+    @State private var warpPhase: WarpPhase = .enter
+    @State private var warpScale: CGFloat = 0.18
+    @State private var warpBlur: CGFloat = 22
+    @State private var warpBrightness: Double = -0.7
+    @State private var telescopeScale: CGFloat = 1.0
+    @State private var lastTabLeave: Date?
+    @State private var warpGeneration: Int = 0
+
     enum UploadStage { case idle, pick, reading, reveal }
 
     var body: some View {
         GeometryReader { geo in
             let W = geo.size.width
             let H = geo.size.height
+            let safeTop = geo.safeAreaInsets.top
+            let safeBot = geo.safeAreaInsets.bottom
 
             ZStack(alignment: .top) {
-                Color(hex: 0x08041A)
                 galaxyBackdrop
 
                 // World layer — pan + zoom
@@ -250,22 +300,19 @@ struct GalaxyScreen: View {
                 .contentShape(Rectangle())
                 .simultaneousGesture(makeGesture(W: W, H: H))
 
-                // Top fade — frosted glass blur + purple-tinted gradient
-                ZStack(alignment: .top) {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .frame(height: 120)
-                    LinearGradient(
-                        colors: [
-                            Color(hex: 0x1E0848, opacity: 0.88),
-                            Color(hex: 0x120430, opacity: 0.68),
-                            Color(hex: 0x08041A, opacity: 0.38),
-                            Color(hex: 0x08041A, opacity: 0.0),
-                        ],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                    .frame(height: 250)
-                }
+                // Top fade — translucent dark gradient, no hard edge
+                LinearGradient(
+                    stops: [
+                        .init(color: Color(hex: 0x07021A, opacity: 0.96), location: 0.00),
+                        .init(color: Color(hex: 0x0D0530, opacity: 0.90), location: 0.10),
+                        .init(color: Color(hex: 0x0D0530, opacity: 0.78), location: 0.22),
+                        .init(color: Color(hex: 0x08041A, opacity: 0.52), location: 0.40),
+                        .init(color: Color(hex: 0x08041A, opacity: 0.18), location: 0.60),
+                        .init(color: Color(hex: 0x08041A, opacity: 0.00), location: 1.00),
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 340)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .allowsHitTesting(false)
 
@@ -282,61 +329,13 @@ struct GalaxyScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .allowsHitTesting(false)
 
-                TopHeader(stats: state.stats, filter: filter, onFilter: { filter = $0 })
-
-                // Zoom controls
-                VStack {
-                    Spacer()
-                    HStack(alignment: .bottom) {
-                        Spacer()
-                        ZoomControls(
-                            zoomIn: { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { scale = min(2.5, scale * 1.25) } },
-                            zoomOut: { withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { scale = max(0.35, scale / 1.25) } },
-                            reset: {
-                                withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
-                                    scale = 0.5; tx = -50; ty = 180; selected = nil
-                                }
-                            }
-                        )
-                        .padding(.trailing, 14)
-                    }
-                    .padding(.bottom, 110)
-                }
-                .allowsHitTesting(true)
+                TopHeader(stats: state.stats, filter: filter, onFilter: { filter = $0 }, topInset: safeTop)
 
                 if selected == nil {
                     HintPill(gaps: state.stats.gaps)
-                        .padding(.bottom, 110)
+                        .padding(.bottom, 82 + max(safeBot, 10))
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                         .allowsHitTesting(false)
-                }
-
-                if let node = selected {
-                    SkillSheet(
-                        node: node,
-                        onClose: { selected = nil },
-                        onTrain: { onTrain($0) }
-                    )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .zIndex(30)
-                }
-
-                if selected == nil {
-                    BottomNav(active: .galaxy, onChange: onTabChange)
-                        .zIndex(25)
-                }
-
-                if let c = modalConstellation {
-                    ConstellationModal(
-                        constellation: c,
-                        onClose: { modalConstellation = nil },
-                        onJumpToStar: { node in
-                            modalConstellation = nil
-                            handleStarTap(node, viewport: geo.size)
-                        }
-                    )
-                    .zIndex(90)
-                    .transition(.opacity)
                 }
 
                 // Upload flow overlays
@@ -367,10 +366,58 @@ struct GalaxyScreen: View {
             }
             .frame(width: W, height: H)
             .clipped()
+            .sheet(item: $selected) { node in
+                SkillSheet(
+                    node: node,
+                    onTrain: { n in
+                        selected = nil
+                        onTrain(n)
+                    }
+                )
+            }
+            .sheet(item: $modalConstellation) { c in
+                ConstellationModal(
+                    constellation: c,
+                    onJumpToStar: { node in
+                        modalConstellation = nil
+                        handleStarTap(node, viewport: geo.size)
+                    }
+                )
+            }
             .animation(.easeOut(duration: 0.25), value: selected?.id)
-            .animation(.easeOut(duration: 0.3), value: modalConstellation?.id)
             .animation(.easeOut(duration: 0.25), value: uploadStage)
+            .scaleEffect(warpScale)
+            .blur(radius: warpBlur)
+            .brightness(warpBrightness)
+            .overlay(alignment: .center) {
+                if warpPhase != .done {
+                    TelescopeOverlayView(viewW: W, viewH: H)
+                        .scaleEffect(telescopeScale, anchor: UnitPoint(x: 0.5, y: 0.48))
+                        .allowsHitTesting(false)
+                }
+            }
+            .onAppear {
+                let elapsed = lastTabLeave.map { Date().timeIntervalSince($0) } ?? .infinity
+                guard elapsed > 3.0 else { return }
+                warpGeneration += 1
+                warpPhase = .enter
+                warpScale = 0.18
+                warpBlur = 22
+                warpBrightness = -0.7
+                telescopeScale = 1.0
+                startWarp()
+            }
+            .onDisappear {
+                lastTabLeave = Date()
+                warpGeneration += 1
+                warpPhase = .done
+                warpScale = 1.0
+                warpBlur = 0
+                warpBrightness = 0
+                telescopeScale = 1.0
+            }
         }
+        .ignoresSafeArea()
     }
 
     // MARK: Backdrop layers
@@ -386,6 +433,29 @@ struct GalaxyScreen: View {
         .allowsHitTesting(false)
     }
 
+    private func startWarp() {
+        let gen = warpGeneration
+        withAnimation(.spring(response: 1.3, dampingFraction: 0.52)) {
+            warpScale = 1.0
+        }
+        withAnimation(.timingCurve(0.22, 1.0, 0.36, 1.0, duration: 1.1)) {
+            warpBlur = 0
+            warpBrightness = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+            guard warpGeneration == gen else { return }
+            warpPhase = .exit
+            withAnimation(.timingCurve(0.3, 0.0, 0.8, 1.0, duration: 0.65)) {
+                telescopeScale = 3.4
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            guard warpGeneration == gen else { return }
+            warpPhase = .done
+            telescopeScale = 1.0
+        }
+    }
+
     private var focusedConstellationId: String? {
         guard let s = selected else { return nil }
         return state.nodesById()[s.id]?.constellationId
@@ -394,8 +464,15 @@ struct GalaxyScreen: View {
     // MARK: Gestures
 
     private func clampOffset(tx: CGFloat, ty: CGFloat, scale: CGFloat, W: CGFloat, H: CGFloat) -> (CGFloat, CGFloat) {
-        let worldW: CGFloat = 1100
-        let worldH: CGFloat = 1660
+        // Derive world bounds from actual star positions so they tighten/grow with content.
+        let wsc: CGFloat = 1.3
+        let allNodes = state.constellations.flatMap(\.nodes)
+        let rawMaxX = allNodes.map(\.x).max() ?? GalaxyData.SKY_W
+        let rawMaxY = allNodes.map(\.y).max() ?? GalaxyData.SKY_H
+        // Always include the discover-nebula at (760, 1450) even when it has no stars yet.
+        let pad: CGFloat = 110
+        let worldW = (max(rawMaxX, 760) + pad) * wsc
+        let worldH = (max(rawMaxY, 1450) + pad) * wsc
         let margin: CGFloat = 120
         let clampedTx = max(margin - worldW * scale, min(W - margin, tx))
         let clampedTy = max(margin - worldH * scale, min(H - margin, ty))
@@ -405,14 +482,18 @@ struct GalaxyScreen: View {
     private func makeGesture(W: CGFloat, H: CGFloat) -> some Gesture {
         SimultaneousGesture(
             DragGesture(minimumDistance: 4)
-                .onChanged { v in dragOffset = v.translation }
-                .onEnded { v in
+                .onChanged { v in
                     let (cTx, cTy) = clampOffset(
                         tx: tx + v.translation.width,
                         ty: ty + v.translation.height,
                         scale: scale, W: W, H: H
                     )
-                    tx = cTx; ty = cTy; dragOffset = .zero
+                    dragOffset = CGSize(width: cTx - tx, height: cTy - ty)
+                }
+                .onEnded { _ in
+                    tx += dragOffset.width
+                    ty += dragOffset.height
+                    dragOffset = .zero
                 },
             MagnifyGesture()
                 .onChanged { v in
@@ -529,9 +610,13 @@ struct SkyCanvas: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
             Canvas { ctx, size in
                 let t = context.date.timeIntervalSinceReferenceDate
+                let wsc: CGFloat = 1.3
+
+                // Parallax star layers drawn in screen space before the world transform
+                drawParallaxStars(ctx: ctx, t: t)
 
                 ctx.translateBy(x: tx, y: ty)
-                ctx.scaleBy(x: scale, y: scale)
+                ctx.scaleBy(x: scale * wsc, y: scale * wsc)
 
                 drawBackdrop(ctx: &ctx, t: t)
                 drawBridges(ctx: &ctx)
@@ -541,6 +626,49 @@ struct SkyCanvas: View {
                 }
                 drawStars(ctx: &ctx, t: t, scale: scale)
             }
+        }
+    }
+
+    // MARK: Parallax star field
+
+    private func drawParallaxStars(ctx: GraphicsContext, t: TimeInterval) {
+        // Far layer — barely moves, creates infinite-depth feeling
+        var farCtx = ctx
+        farCtx.translateBy(x: tx * 0.05, y: ty * 0.05)
+        for s in GalaxyData.starLayers.far {
+            farCtx.fill(
+                Path(ellipseIn: CGRect(x: s.x - s.r, y: s.y - s.r, width: s.r * 2, height: s.r * 2)),
+                with: .color((s.warm ? Color(hex: 0xD0E8FF) : .white).opacity(s.o))
+            )
+        }
+
+        // Mid layer — gentle parallax + twinkling
+        var midCtx = ctx
+        midCtx.translateBy(x: tx * 0.16, y: ty * 0.16)
+        for s in GalaxyData.starLayers.mid {
+            let tw = 0.5 + 0.5 * sin(t / s.tw * 2 + s.td)
+            let alpha = s.o * (0.2 + 0.8 * tw)
+            midCtx.fill(
+                Path(ellipseIn: CGRect(x: s.x - s.r, y: s.y - s.r, width: s.r * 2, height: s.r * 2)),
+                with: .color((s.warm ? Color(hex: 0xFFE8C8) : .white).opacity(alpha))
+            )
+        }
+
+        // Near layer — strongest parallax, soft halos, brightest
+        var nearCtx = ctx
+        nearCtx.translateBy(x: tx * 0.36, y: ty * 0.36)
+        for s in GalaxyData.starLayers.near {
+            let tw = 0.5 + 0.5 * sin(t / s.tw * 2 + s.td)
+            let alpha = s.o * (0.25 + 0.75 * tw)
+            let hR = s.r * 2.8
+            nearCtx.fill(
+                Path(ellipseIn: CGRect(x: s.x - hR, y: s.y - hR, width: hR * 2, height: hR * 2)),
+                with: .color(s.warm ? Color(hex: 0xFFDCA0, opacity: 0.18) : Color(hex: 0xB4DCFF, opacity: 0.18))
+            )
+            nearCtx.fill(
+                Path(ellipseIn: CGRect(x: s.x - s.r, y: s.y - s.r, width: s.r * 2, height: s.r * 2)),
+                with: .color((s.warm ? Color(hex: 0xFFE4AA) : .white).opacity(alpha))
+            )
         }
     }
 
@@ -558,11 +686,13 @@ struct SkyCanvas: View {
             let rect = CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)
             let grad = Gradient(stops: [
                 .init(color: Color(hex: 0xDCD2FF, opacity: 0.18), location: 0),
+                .init(color: Color(hex: 0xDCD2FF, opacity: 0.11), location: 0.35),
+                .init(color: Color(hex: 0xDCD2FF, opacity: 0.04), location: 0.70),
                 .init(color: Color(hex: 0xDCD2FF, opacity: 0), location: 1),
             ])
             p.fill(
                 Path(ellipseIn: rect),
-                with: .radialGradient(grad, center: CGPoint(x: cx, y: cy), startRadius: 0, endRadius: max(rx, ry))
+                with: .radialGradient(grad, center: CGPoint(x: cx, y: cy), startRadius: 0, endRadius: ry)
             )
         }
 
@@ -590,8 +720,11 @@ struct SkyCanvas: View {
         for n in nebulae {
             let rect = CGRect(x: n.x - n.rx, y: n.y - n.ry, width: n.rx * 2, height: n.ry * 2)
             let grad = Gradient(stops: [
-                .init(color: Color(hex: n.color, opacity: n.opacity), location: 0),
-                .init(color: Color(hex: n.color, opacity: 0), location: 1),
+                .init(color: Color(hex: n.color, opacity: n.opacity),            location: 0),
+                .init(color: Color(hex: n.color, opacity: n.opacity * 0.62),     location: 0.28),
+                .init(color: Color(hex: n.color, opacity: n.opacity * 0.28),     location: 0.58),
+                .init(color: Color(hex: n.color, opacity: n.opacity * 0.07),     location: 0.82),
+                .init(color: Color(hex: n.color, opacity: 0),                    location: 1),
             ])
             ctx.fill(
                 Path(ellipseIn: rect),
@@ -599,13 +732,6 @@ struct SkyCanvas: View {
             )
         }
 
-        // Background stars (twinkle)
-        for s in GalaxyData.backdropStars {
-            let twinkle = 0.5 + 0.5 * sin(t / s.tw * 2 + s.td)
-            let alpha = s.o * (0.3 + 0.7 * twinkle)
-            let rect = CGRect(x: s.x - s.r, y: s.y - s.r, width: s.r * 2, height: s.r * 2)
-            ctx.fill(Path(ellipseIn: rect), with: .color(.white.opacity(alpha)))
-        }
     }
 
     // MARK: Bridges
@@ -681,9 +807,11 @@ struct SkyCanvas: View {
                 let haloRect = CGRect(x: n.x - haloR, y: n.y - haloR, width: haloR * 2, height: haloR * 2)
                 let haloColor = pal.glow
                 let haloGrad = Gradient(stops: [
-                    .init(color: haloColor.opacity(0.95 * baseOpacity), location: 0),
-                    .init(color: haloColor.opacity(0.4 * baseOpacity), location: 0.4),
-                    .init(color: haloColor.opacity(0), location: 1),
+                    .init(color: haloColor.opacity(0.88 * baseOpacity), location: 0),
+                    .init(color: haloColor.opacity(0.55 * baseOpacity), location: 0.22),
+                    .init(color: haloColor.opacity(0.22 * baseOpacity), location: 0.52),
+                    .init(color: haloColor.opacity(0.05 * baseOpacity), location: 0.80),
+                    .init(color: haloColor.opacity(0),                  location: 1),
                 ])
                 ctx.fill(
                     Path(ellipseIn: haloRect),
@@ -749,21 +877,26 @@ struct SkyCanvas: View {
                     )
                 }
 
-                // NEW chip
+                // NEW chip — constant screen size
                 if isNew {
                     let chipW: CGFloat = 28
                     let chipH: CGFloat = 14
                     let chipY = n.y - bodyR - 10
-                    let chip = Path(roundedRect: CGRect(x: n.x - chipW/2, y: chipY - chipH/2, width: chipW, height: chipH), cornerRadius: 7)
-                    ctx.fill(chip, with: .color(Color(hex: 0xFFE066)))
-                    ctx.stroke(chip, with: .color(Color(hex: 0xFFB300)), lineWidth: 1)
-                    let label = Text("NEW")
+                    let wsc: CGFloat = 1.3
+                    let invS = 1.0 / (scale * wsc)
+                    var nctx = ctx
+                    nctx.translateBy(x: n.x, y: chipY)
+                    nctx.scaleBy(x: invS, y: invS)
+                    let chip = Path(roundedRect: CGRect(x: -chipW/2, y: -chipH/2, width: chipW, height: chipH), cornerRadius: 7)
+                    nctx.fill(chip, with: .color(Color(hex: 0xFFE066)))
+                    nctx.stroke(chip, with: .color(Color(hex: 0xFFB300)), lineWidth: 1)
+                    let newLabel = Text("NEW")
                         .font(.system(size: 8.5, weight: .bold, design: .rounded))
                         .foregroundColor(Color(hex: 0x3A2A00))
-                    ctx.draw(label, at: CGPoint(x: n.x, y: chipY), anchor: .center)
+                    nctx.draw(newLabel, at: .zero, anchor: .center)
                 }
 
-                // Label pill — fades in/out smoothly with zoom level
+                // Label pill — fades in/out smoothly with zoom level, constant screen size
                 let labelAlpha: Double = isSelected
                     ? 1.0
                     : max(0.0, min(1.0, Double((scale - 0.72) / 0.18)))
@@ -772,9 +905,13 @@ struct SkyCanvas: View {
                     let chipH: CGFloat = 16
                     let approxW = max(48, CGFloat(labelText.count) * 5.6 + 18)
                     let chipY = n.y + bodyR + 10
-                    let chipRect = CGRect(x: n.x - approxW/2, y: chipY - chipH/2, width: approxW, height: chipH)
+                    let wsc: CGFloat = 1.3
+                    let invS = 1.0 / (scale * wsc)
                     var lctx = ctx
                     lctx.opacity = labelAlpha
+                    lctx.translateBy(x: n.x, y: chipY)
+                    lctx.scaleBy(x: invS, y: invS)
+                    let chipRect = CGRect(x: -approxW/2, y: -chipH/2, width: approxW, height: chipH)
                     lctx.fill(
                         Path(roundedRect: chipRect, cornerRadius: chipH/2),
                         with: .color(Color(hex: 0x0E1228, opacity: 0.82))
@@ -787,7 +924,7 @@ struct SkyCanvas: View {
                     let label = Text(labelText)
                         .font(.system(size: 9, weight: .semibold, design: .rounded))
                         .foregroundColor(n.status == .locked ? Color(hex: 0xC8D2E6, opacity: 0.7) : .white)
-                    lctx.draw(label, at: CGPoint(x: n.x, y: chipY), anchor: .center)
+                    lctx.draw(label, at: .zero, anchor: .center)
                 }
             }
         }
@@ -797,6 +934,9 @@ struct SkyCanvas: View {
     }
 
     private func drawConstellationNameplates(ctx: inout GraphicsContext) {
+        let wsc: CGFloat = 1.3
+        let invS = 1.0 / (scale * wsc)
+
         for c in constellations {
             let avg = c.masteryAvg
             let pct = Int((avg * 100).rounded())
@@ -813,34 +953,39 @@ struct SkyCanvas: View {
             let halfW = totalW / 2
             let h: CGFloat = 26
 
+            // Counter-scale so the nameplate stays the same screen size at any zoom
+            var tctx = ctx
+            tctx.translateBy(x: cx, y: labelY)
+            tctx.scaleBy(x: invS, y: invS)
+
             // Soft halo
-            let haloRect = CGRect(x: cx - halfW - 6, y: labelY - h/2 - 4, width: totalW + 12, height: h + 8)
-            ctx.fill(Path(roundedRect: haloRect, cornerRadius: (h + 8)/2),
+            let haloRect = CGRect(x: -halfW - 6, y: -h/2 - 4, width: totalW + 12, height: h + 8)
+            tctx.fill(Path(roundedRect: haloRect, cornerRadius: (h + 8)/2),
                      with: .color(Color(hex: 0x08041A, opacity: 0.42)))
 
             // Main pill
-            let nameRect = CGRect(x: cx - halfW, y: labelY - h/2, width: labelW, height: h)
-            ctx.fill(Path(roundedRect: nameRect, cornerRadius: h/2),
+            let nameRect = CGRect(x: -halfW, y: -h/2, width: labelW, height: h)
+            tctx.fill(Path(roundedRect: nameRect, cornerRadius: h/2),
                      with: .color(Color(hex: 0x0E1228, opacity: 0.85)))
-            ctx.stroke(Path(roundedRect: nameRect, cornerRadius: h/2),
+            tctx.stroke(Path(roundedRect: nameRect, cornerRadius: h/2),
                        with: .color(Color(hex: 0xFFE066, opacity: 0.4)), lineWidth: 1)
 
             let nameText = Text(label)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundColor(Color(hex: 0xFFF8E1))
-            ctx.draw(nameText, at: CGPoint(x: cx - halfW + labelW/2, y: labelY), anchor: .center)
+            tctx.draw(nameText, at: CGPoint(x: -halfW + labelW/2, y: 0), anchor: .center)
 
             // Mastery chip
-            let chipRect = CGRect(x: cx - halfW + labelW + gap, y: labelY - h/2, width: chipW, height: h)
-            ctx.fill(Path(roundedRect: chipRect, cornerRadius: h/2),
+            let chipRect = CGRect(x: -halfW + labelW + gap, y: -h/2, width: chipW, height: h)
+            tctx.fill(Path(roundedRect: chipRect, cornerRadius: h/2),
                      with: .color(hot ? Color(hex: 0xFFB300, opacity: 0.9) : Color(hex: 0x5EE7FF, opacity: 0.18)))
-            ctx.stroke(Path(roundedRect: chipRect, cornerRadius: h/2),
+            tctx.stroke(Path(roundedRect: chipRect, cornerRadius: h/2),
                        with: .color(hot ? Color(hex: 0xFFE066, opacity: 0.9) : Color(hex: 0x5EE7FF, opacity: 0.6)), lineWidth: 1)
 
             let pctText = Text("\(pct)%")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundColor(hot ? Color(hex: 0x2A1A00) : Color(hex: 0x5EE7FF))
-            ctx.draw(pctText, at: CGPoint(x: cx - halfW + labelW + gap + chipW/2, y: labelY), anchor: .center)
+            tctx.draw(pctText, at: CGPoint(x: -halfW + labelW + gap + chipW/2, y: 0), anchor: .center)
         }
     }
 
@@ -921,28 +1066,40 @@ struct SkyCanvas: View {
         plus.move(to: CGPoint(x: cx, y: cy - 10)); plus.addLine(to: CGPoint(x: cx, y: cy + 10))
         ctx.stroke(plus, with: .color(Color(hex: 0xFFE066)), style: StrokeStyle(lineWidth: 3.4, lineCap: .round))
 
-        // Nameplate "✨ New Skies"
-        let label = "✨ New Skies"
-        let labelW: CGFloat = 130
-        let labelH: CGFloat = 26
-        let labelY = cy + 110
-        let nameRect = CGRect(x: cx - labelW/2, y: labelY - labelH/2, width: labelW, height: labelH)
-        ctx.fill(Path(roundedRect: nameRect, cornerRadius: labelH/2),
-                 with: .color(Color(hex: 0x0E1228, opacity: 0.85)))
-        ctx.stroke(Path(roundedRect: nameRect, cornerRadius: labelH/2),
-                   with: .color(Color(hex: 0xFFE066, opacity: 0.4)), lineWidth: 1)
-        ctx.draw(
-            Text(label).font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundColor(Color(hex: 0xFFF8E1)),
-            at: CGPoint(x: cx, y: labelY), anchor: .center
-        )
+        // Nameplate "✨ New Skies" — constant screen size
+        let wsc: CGFloat = 1.3
+        let invS = 1.0 / (scale * wsc)
+        let nebulaLabelY = cy + 110
+        do {
+            let labelW: CGFloat = 130
+            let labelH: CGFloat = 26
+            var tctx = ctx
+            tctx.translateBy(x: cx, y: nebulaLabelY)
+            tctx.scaleBy(x: invS, y: invS)
+            let nameRect = CGRect(x: -labelW/2, y: -labelH/2, width: labelW, height: labelH)
+            tctx.fill(Path(roundedRect: nameRect, cornerRadius: labelH/2),
+                     with: .color(Color(hex: 0x0E1228, opacity: 0.85)))
+            tctx.stroke(Path(roundedRect: nameRect, cornerRadius: labelH/2),
+                       with: .color(Color(hex: 0xFFE066, opacity: 0.4)), lineWidth: 1)
+            tctx.draw(
+                Text("✨ New Skies").font(.system(size: 13, weight: .semibold, design: .rounded)).foregroundColor(Color(hex: 0xFFF8E1)),
+                at: .zero, anchor: .center
+            )
+        }
 
-        // Sub-label
-        ctx.draw(
-            Text("Tap to grow new stars!")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(Color(hex: 0xFFE066, opacity: 0.95)),
-            at: CGPoint(x: cx, y: cy + 142), anchor: .center
-        )
+        // Sub-label — constant screen size
+        do {
+            let subY = cy + 142
+            var tctx = ctx
+            tctx.translateBy(x: cx, y: subY)
+            tctx.scaleBy(x: invS, y: invS)
+            tctx.draw(
+                Text("Tap to grow new stars!")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(Color(hex: 0xFFE066, opacity: 0.95)),
+                at: .zero, anchor: .center
+            )
+        }
     }
 
     private func drawFivePointStar(
@@ -1013,49 +1170,12 @@ struct GalaxyHitLayer: View {
     }
 
     private func worldToScreen(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: p.x * scale + tx, y: p.y * scale + ty)
+        let wsc: CGFloat = 1.3
+        return CGPoint(x: p.x * scale * wsc + tx, y: p.y * scale * wsc + ty)
     }
 }
 
-// MARK: - Zoom controls + hint pill
-
-struct ZoomControls: View {
-    let zoomIn: () -> Void
-    let zoomOut: () -> Void
-    let reset: () -> Void
-
-    var body: some View {
-        VStack(spacing: 6) {
-            zoomBtn { Text("+").font(.system(size: 18, weight: .bold, design: .rounded)) } action: { zoomIn() }
-            zoomBtn { Text("−").font(.system(size: 18, weight: .bold, design: .rounded)) } action: { zoomOut() }
-            zoomBtn {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .semibold))
-            } action: { reset() }
-        }
-    }
-
-    @ViewBuilder
-    private func zoomBtn<Content: View>(
-        @ViewBuilder _ label: () -> Content,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            label()
-                .foregroundColor(Color(hex: 0xFFE066))
-                .frame(width: 36, height: 36)
-                .background(.ultraThinMaterial)
-                .background(Color(hex: 0x1C0C3C, opacity: 0.78))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color(hex: 0xFFE066, opacity: 0.35), lineWidth: 1.5)
-                )
-                .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 4)
-        }
-        .buttonStyle(.plain)
-    }
-}
+// MARK: - Hint pill
 
 struct HintPill: View {
     let gaps: Int
@@ -1085,6 +1205,182 @@ struct HintPill: View {
             Capsule().stroke(Color(hex: 0x5EE7FF, opacity: 0.4), lineWidth: 1.5)
         )
         .onAppear { pulse = true }
+    }
+}
+
+// MARK: - Custom bottom navigation
+
+private struct CustomBottomNav: View {
+    @Binding var tab: GalaxyTab
+    let safeBottom: CGFloat
+
+    private let items: [(GalaxyTab, String, String)] = [
+        (.galaxy,  "Galaxy", "🌌"),
+        (.study,   "Quests", "🎯"),
+        (.nova,    "Nova",   "🦊"),
+        (.profile, "Me",     "👤"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(items, id: \.0.rawValue) { item in
+                NavTabButton(
+                    tabVal: item.0, label: item.1, emoji: item.2,
+                    isActive: tab == item.0
+                ) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.78)) {
+                        tab = item.0
+                    }
+                }
+            }
+        }
+        .frame(height: 62)
+        .background(.ultraThinMaterial)
+        .background(Color(hex: 0x1C0C3C, opacity: 0.78))
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color(hex: 0xFFE066, opacity: 0.25), lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.5), radius: 20, x: 0, y: 8)
+        .padding(.horizontal, 14)
+        .padding(.bottom, max(safeBottom, 10) + 14)
+    }
+}
+
+private struct NavTabButton: View {
+    let tabVal: GalaxyTab
+    let label: String
+    let emoji: String
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 2) {
+                Text(emoji)
+                    .font(.system(size: 20))
+                    .frame(width: 32, height: 32)
+
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .tracking(1.0)
+            }
+            .foregroundColor(isActive ? Color(hex: 0xFFE066) : .white.opacity(0.45))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .padding(.horizontal, isActive ? 14 : 10)
+            .background(
+                Group {
+                    if isActive {
+                        LinearGradient(
+                            colors: [Color(hex: 0xFFE066, opacity: 0.22), Color(hex: 0xFF8AD8, opacity: 0.18)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 1.5)
+                        )
+                    }
+                }
+            )
+        }
+        .buttonStyle(.plain)
+        .offset(y: isActive ? -3 : 0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.78), value: isActive)
+    }
+}
+
+// MARK: - Telescope overlay (warp-in page transition)
+
+private struct TelescopeOverlayView: View {
+    let viewW: CGFloat
+    let viewH: CGFloat
+
+    var body: some View {
+        let cx = viewW / 2
+        let cy = viewH * 0.48
+        let r  = viewW * 0.46
+
+        Canvas { ctx, _ in
+            // Vignette: clear inside eyepiece, dark outside
+            ctx.fill(
+                Path(CGRect(x: 0, y: 0, width: viewW, height: viewH)),
+                with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: .clear,                      location: 0.00),
+                        .init(color: .clear,                      location: 0.80),
+                        .init(color: .black.opacity(0.90),        location: 0.91),
+                        .init(color: .black.opacity(0.99),        location: 0.97),
+                        .init(color: Color(hex: 0x020108),        location: 1.00),
+                    ]),
+                    center: CGPoint(x: cx, y: cy),
+                    startRadius: 0, endRadius: r
+                )
+            )
+
+            // Chromatic aberration fringe
+            ctx.fill(
+                Path(CGRect(x: 0, y: 0, width: viewW, height: viewH)),
+                with: .radialGradient(
+                    Gradient(stops: [
+                        .init(color: .clear,                                                  location: 0.74),
+                        .init(color: Color(red: 0.24, green: 0.31, blue: 1.0, opacity: 0.13), location: 0.82),
+                        .init(color: Color(red: 1.0,  green: 0.16, blue: 0.24, opacity: 0.10), location: 0.87),
+                        .init(color: .clear,                                                  location: 0.92),
+                    ]),
+                    center: CGPoint(x: cx, y: cy),
+                    startRadius: 0, endRadius: r
+                )
+            )
+
+            // Hard eyepiece rim
+            let rimR = r + 18
+            let rimPath = Path(ellipseIn: CGRect(x: cx - rimR, y: cy - rimR, width: rimR * 2, height: rimR * 2))
+            ctx.stroke(rimPath, with: .color(Color(red: 0.12, green: 0.12, blue: 0.20, opacity: 0.98)), lineWidth: 38)
+            ctx.stroke(rimPath, with: .color(Color(red: 0.35, green: 0.41, blue: 0.55, opacity: 0.55)), lineWidth: 2)
+
+            // Inner rim line
+            ctx.stroke(
+                Path(ellipseIn: CGRect(x: cx - (r-1), y: cy - (r-1), width: (r-1)*2, height: (r-1)*2)),
+                with: .color(Color(red: 0.51, green: 0.61, blue: 0.78, opacity: 0.30)),
+                lineWidth: 1.5
+            )
+
+            // Lens reflection rings
+            ctx.stroke(
+                Path(ellipseIn: CGRect(x: cx - r*0.87, y: cy - r*0.87, width: r*0.87*2, height: r*0.87*2)),
+                with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.07)), lineWidth: 1
+            )
+            ctx.stroke(
+                Path(ellipseIn: CGRect(x: cx - r*0.70, y: cy - r*0.70, width: r*0.70*2, height: r*0.70*2)),
+                with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.04)), lineWidth: 0.8
+            )
+
+            // Split crosshairs
+            let hairColor = Color(red: 0.78, green: 0.86, blue: 1.0, opacity: 0.18)
+            var hairs = Path()
+            hairs.move(to: CGPoint(x: cx, y: cy - r * 0.95)); hairs.addLine(to: CGPoint(x: cx, y: cy - r * 0.28))
+            hairs.move(to: CGPoint(x: cx, y: cy + r * 0.28)); hairs.addLine(to: CGPoint(x: cx, y: cy + r * 0.95))
+            hairs.move(to: CGPoint(x: cx - r * 0.95, y: cy)); hairs.addLine(to: CGPoint(x: cx - r * 0.28, y: cy))
+            hairs.move(to: CGPoint(x: cx + r * 0.28, y: cy)); hairs.addLine(to: CGPoint(x: cx + r * 0.95, y: cy))
+            ctx.stroke(hairs, with: .color(hairColor), lineWidth: 0.6)
+            ctx.fill(Path(ellipseIn: CGRect(x: cx-2, y: cy-2, width: 4, height: 4)),
+                     with: .color(Color(red: 0.78, green: 0.86, blue: 1.0, opacity: 0.22)))
+
+            // HUD labels
+            let hudColor = Color(red: 0.63, green: 0.78, blue: 1.0, opacity: 0.50)
+            ctx.draw(
+                Text("MAG ×48").font(.system(size: 7, design: .monospaced)).foregroundColor(hudColor),
+                at: CGPoint(x: cx + r * 0.60, y: cy + r * 0.90), anchor: .leading
+            )
+            ctx.draw(
+                Text("FOCUS").font(.system(size: 7, design: .monospaced)).foregroundColor(hudColor),
+                at: CGPoint(x: cx - r * 0.96, y: cy + r * 0.90), anchor: .leading
+            )
+        }
+        .frame(width: viewW, height: viewH)
     }
 }
 

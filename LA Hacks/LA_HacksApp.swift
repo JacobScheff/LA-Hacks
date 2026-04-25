@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct LA_HacksApp: App {
+    @State private var userSettings = UserSettings()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(userSettings)
         }
     }
 }

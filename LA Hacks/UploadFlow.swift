@@ -88,6 +88,40 @@ private func pickRecipe(text: String, fileName: String) -> TopicRecipe {
     return TOPIC_RECIPES.last!
 }
 
+/// Scan the sky bottom-to-top for a cluster center that doesn't overlap
+/// any existing constellation's padded convex-hull bounding rect.
+/// The probe box represents the area the new cluster will occupy (outerR + clearance).
+private func freeClusterCenter(avoiding constellations: [Constellation]) -> CGPoint {
+    // minGap: minimum clear distance between any existing star edge and any new star edge.
+    let minGap: CGFloat = 120
+    let outerR: CGFloat = 215          // radius of the new cluster's outer ring
+    let bboxPad = minGap / 2           // split gap evenly between the two sides
+    let probeHalf = outerR + minGap / 2
+
+    let boxes = constellations.map { $0.boundingRect(padding: bboxPad) }
+
+    func isFree(_ x: CGFloat, _ y: CGFloat) -> Bool {
+        let probe = CGRect(x: x - probeHalf, y: y - probeHalf,
+                          width: probeHalf * 2, height: probeHalf * 2)
+        return !boxes.contains { $0.intersects(probe) }
+    }
+
+    // Scan bottom-to-top so we prefer the less-crowded lower sky.
+    let step: CGFloat = 100
+    var y = GalaxyData.SKY_H - 150
+    while y >= 200 {
+        var x: CGFloat = 150
+        while x <= GalaxyData.SKY_W - 150 {
+            if isFree(x, y) { return CGPoint(x: x, y: y) }
+            x += step
+        }
+        y -= step
+    }
+    // Fallback: extend below all existing content.
+    let maxY = constellations.flatMap(\.nodes).map(\.y).max() ?? GalaxyData.SKY_H * 0.8
+    return CGPoint(x: GalaxyData.SKY_W / 2, y: maxY + 380)
+}
+
 private func makeNewClusterPositions(count: Int, cx: CGFloat, cy: CGFloat) -> [(CGFloat, CGFloat)] {
     var positions: [(CGFloat, CGFloat)] = []
     let innerR: CGFloat = 130
@@ -150,8 +184,9 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
         )
     }
 
-    // Brand-new constellation in lower-right open spot
-    let cx: CGFloat = 760, cy: CGFloat = 1450
+    // Brand-new constellation — find a free spot that doesn't overlap any existing one.
+    let freeCenter = freeClusterCenter(avoiding: constellations)
+    let cx = freeCenter.x, cy = freeCenter.y
     let positions = makeNewClusterPositions(count: recipe.topics.count, cx: cx, cy: cy)
     let newId = "gen-\(now)"
     let primary: [StarNode] = recipe.topics.enumerated().map { i, t in

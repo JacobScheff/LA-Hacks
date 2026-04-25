@@ -195,11 +195,9 @@ struct TrainingOverlay: View {
 
 struct ConstellationModal: View {
     let constellation: Constellation
-    let onClose: () -> Void
     let onJumpToStar: (StarNode) -> Void
 
-    @State private var sheetFraction: CGFloat = 0.90
-    @GestureState private var handleDrag: CGFloat = 0
+    @Environment(\.dismiss) private var dismiss
 
     private var counts: (mastered: Int, learning: Int, gap: Int, locked: Int) {
         var m = 0, l = 0, g = 0, k = 0
@@ -215,136 +213,87 @@ struct ConstellationModal: View {
     }
 
     var body: some View {
-        ZStack {
-            Color(hex: 0x08041A, opacity: 0.78)
-                .background(.ultraThinMaterial)
-                .ignoresSafeArea()
-                .onTapGesture { onClose() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                miniSky
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 14)
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 40)
-                modalSheet
-            }
-            .ignoresSafeArea(edges: .bottom)
-        }
-    }
-
-    private var modalSheet: some View {
-        VStack(spacing: 0) {
-            // Drag handle — drag up to full screen, drag down to close
-            Capsule()
-                .fill(Color.white.opacity(0.3))
-                .frame(width: 44, height: 5)
-                .padding(.top, 6)
-                .padding(.bottom, 12)
-                .frame(maxWidth: .infinity)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .updating($handleDrag) { v, state, _ in state = v.translation.height }
-                        .onEnded { v in
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                                if v.translation.height > 80 {
-                                    onClose()
-                                } else {
-                                    sheetFraction = v.translation.height < -40 ? 1.0 : 0.90
-                                }
-                            }
-                        }
-                )
-                .onTapGesture { onClose() }
-
-            ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    miniSky
-                        .padding(.horizontal, 16)
+                    Text(constellation.course)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .tracking(0.4)
+                        .foregroundColor(.white.opacity(0.6))
+                        .padding(.bottom, 4)
+
+                    Text("\(constellation.emoji) \(constellation.name)")
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
+                        .tracking(-0.4)
+                        .foregroundColor(.white)
+                        .padding(.bottom, 12)
+
+                    realConstellationPill
                         .padding(.bottom, 14)
 
-                    VStack(alignment: .leading, spacing: 0) {
-                        Text(constellation.course)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .tracking(0.4)
-                            .foregroundColor(.white.opacity(0.6))
-                            .padding(.bottom, 4)
+                    masteryBar
+                        .padding(.bottom, 14)
 
-                        Text("\(constellation.emoji) \(constellation.name)")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .tracking(-0.4)
-                            .foregroundColor(.white)
-                            .padding(.bottom, 12)
+                    aboutCard
+                        .padding(.bottom, 10)
+                    skyLoreCard
+                        .padding(.bottom, 16)
 
-                        realConstellationPill
-                            .padding(.bottom, 14)
+                    Text("⭐ Stars · \(constellation.nodes.count) total")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.bottom, 8)
 
-                        masteryBar
-                            .padding(.bottom, 14)
-
-                        aboutCard
-                            .padding(.bottom, 10)
-                        skyLoreCard
-                            .padding(.bottom, 16)
-
-                        Text("⭐ Stars · \(constellation.nodes.count) total")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.7))
-                            .padding(.bottom, 8)
-
-                        breakdownGrid
-                            .padding(.bottom, 18)
-
-                        Text("👉 Pick a star to visit")
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.7))
-                            .padding(.bottom, 8)
-
-                        VStack(spacing: 6) {
-                            ForEach(constellation.nodes) { n in
-                                starRow(n)
-                            }
-                        }
+                    breakdownGrid
                         .padding(.bottom, 18)
 
-                        Button(action: onClose) {
-                            Text("🚀 Explore the constellation")
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundColor(Color(hex: 0x1A0B40))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(
-                                    LinearGradient(
-                                        colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
-                                        startPoint: .topLeading, endPoint: .bottomTrailing
-                                    )
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                .shadow(color: Color(hex: 0xFF8A4C, opacity: 0.5), radius: 16, x: 0, y: 6)
+                    Text("👉 Pick a star to visit")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.bottom, 8)
+
+                    VStack(spacing: 6) {
+                        ForEach(constellation.nodes) { n in
+                            starRow(n)
                         }
-                        .buttonStyle(.plain)
                     }
-                    .padding(.horizontal, 22)
-                    .padding(.bottom, 30)
+                    .padding(.bottom, 18)
+
+                    Button(action: { dismiss() }) {
+                        Text("🚀 Explore the constellation")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(hex: 0x1A0B40))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                )
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .shadow(color: Color(hex: 0xFF8A4C, opacity: 0.5), radius: 16, x: 0, y: 6)
+                    }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 30)
             }
         }
-        .containerRelativeFrame(.vertical) { length, _ in
-            let live = sheetFraction - handleDrag / length
-            return length * max(0.60, min(1.0, live))
-        }
-        .background(modalBackground)
-        .clipShape(.rect(topLeadingRadius: 28, topTrailingRadius: 28))
-        .overlay(
-            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
-                .stroke(Color(hex: 0xFFE066, opacity: 0.4), lineWidth: 2)
-                .ignoresSafeArea(edges: .bottom)
-        )
         .foregroundColor(.white)
-    }
-
-    private var modalBackground: some View {
-        LinearGradient(
-            colors: [Color(hex: 0x281050, opacity: 0.97), Color(hex: 0x12082A, opacity: 0.99)],
-            startPoint: .top, endPoint: .bottom
-        )
+        .presentationDetents([.large, .fraction(0.9)])
+        .presentationDragIndicator(.visible)
+        .presentationBackground {
+            LinearGradient(
+                colors: [Color(hex: 0x281050, opacity: 0.97), Color(hex: 0x12082A, opacity: 0.99)],
+                startPoint: .top, endPoint: .bottom
+            )
+        }
+        .presentationCornerRadius(28)
     }
 
     private var miniSky: some View {
