@@ -9,9 +9,10 @@
 
 import ZeticMLange
 
-/// Runs the LLM in a detached background task and reports back via callbacks
+/// Runs the LLM in a detached background task and reports back via callbacks.
+/// `model` is currently unused; the function constructs its own instance internally.
 func runModel(
-    model: ZeticMLangeLLMModel,
+    model: ZeticMLangeLLMModel? = nil,
     prompt: String,
     onDownload: @escaping (Float) -> Void,
     onStream: @escaping (String) -> Void,
