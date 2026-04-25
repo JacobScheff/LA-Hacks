@@ -2,13 +2,6 @@
 //  Onboard.swift
 //  LA Hacks
 //
-//  Created by Jacob Scheff on 4/25/26.
-//
-
-//
-//  Onboard.swift
-//  LA Hacks
-//
 //  Star Hop! initial onboarding & background model download.
 //
 
@@ -356,9 +349,20 @@ struct Onboard: View {
                     )
                 }
                 
-                // When finished downloading and loading model:
+                // When finished downloading and loading model (or if already fully loaded):
                 DispatchQueue.main.async {
                     self.downloadProgress = 1.0
+                    
+                    // Fix: If it was completely instant (already downloaded),
+                    // advance the step so the user doesn't get stuck at 100%.
+                    if self.step == .starting {
+                        // Brief 0.8s delay to allow the user to see the successful progress bar
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+                            if self.step == .starting {
+                                self.step = .name
+                            }
+                        }
+                    }
                 }
                 
             } catch {
