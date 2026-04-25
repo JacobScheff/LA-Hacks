@@ -5,14 +5,24 @@
 //  Created by Jacob Scheff on 4/24/26.
 //
 
-// MARK: - Model Runner Function
-
+import Foundation
 import ZeticMLange
 
+<<<<<<< HEAD
 /// Runs the LLM in a detached background task and reports back via callbacks.
 /// `model` is currently unused; the function constructs its own instance internally.
 func runModel(
     model: ZeticMLangeLLMModel? = nil,
+=======
+// MARK: - Global Shared Model
+// Model is declared only once to avoid 5-10s memory initialization between every message
+var sharedModel: ZeticMLangeLLMModel?
+
+// MARK: - Model Runner Function
+
+/// Runs the LLM in a detached background task and reports back via callbacks
+func runModel(
+>>>>>>> 71d9d9210b1f7741fd0aa6809bf6adaf69c06736
     prompt: String,
     onDownload: @escaping (Float) -> Void,
     onStream: @escaping (String) -> Void,
@@ -20,16 +30,22 @@ func runModel(
 ) {
     Task.detached {
         do {
-            // Initialize Model
-            let model = try ZeticMLangeLLMModel(
-                personalKey: personalToken,
-                name: "changgeun/gemma-4-E2B-it",
-                version: 1,
-                modelMode: .RUN_SPEED,
-                onDownload: { progress in
-                    onDownload(progress)
-                }
-            )
+            // Initialize Model ONLY if it hasn't been created yet
+            if sharedModel == nil {
+                sharedModel = try ZeticMLangeLLMModel(
+                    personalKey: personalToken, // Assumes this is defined globally in your project
+                    name: "changgeun/gemma-4-E2B-it",
+                    version: 1,
+                    modelMode: .RUN_SPEED,
+                    onDownload: { progress in
+                        onDownload(progress)
+                    }
+                    
+                )
+            }
+            
+            // Safely unwrap our cached model
+            guard let model = sharedModel else { return }
 
             // Start Generation
             try model.run(prompt)
