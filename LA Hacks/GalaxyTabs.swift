@@ -871,54 +871,98 @@ struct YouTab: View {
     }
 
     private var stickerBook: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Text("🎟️ Sticker Book")
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()
-                Text("\(earnedCount) / \(stickers.count)")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                Text("\(earnedCount)/\(stickers.count)")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0xFFE066))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color(hex: 0xFFE066, opacity: 0.14)))
+                    .overlay(Capsule().stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 1))
             }
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                ForEach(stickers) { s in
-                    VStack(spacing: 3) {
-                        Text(s.unlocked ? s.emoji : "?")
-                            .font(.system(size: 24))
-                            .grayscale(s.unlocked ? 0 : 1)
-                        Text(s.unlocked ? s.label : "???")
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .foregroundColor(s.unlocked ? .white : .white.opacity(0.5))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 2)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(1, contentMode: .fit)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(s.unlocked
-                                  ? AnyShapeStyle(LinearGradient(
-                                        colors: [Color(hex: 0xFFE066, opacity: 0.25), Color(hex: 0xFF8AD8, opacity: 0.18)],
-                                        startPoint: .topLeading, endPoint: .bottomTrailing))
-                                  : AnyShapeStyle(Color.white.opacity(0.05)))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(
-                                s.unlocked ? Color(hex: 0xFFE066, opacity: 0.6) : Color.white.opacity(0.18),
-                                style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ? [] : [3, 3])
-                            )
-                    )
-                    .opacity(s.unlocked ? 1 : 0.4)
-                }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
+                ForEach(stickers) { s in stickerCell(s) }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sCard(padding: EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
         .padding(.horizontal, 16)
         .padding(.bottom, 18)
+    }
+
+    private func stickerColors(_ s: Sticker) -> (Color, Color) {
+        switch s.emoji {
+        case "🍕": return (Color(hex: 0xFF8A4C), Color(hex: 0xFFE066))
+        case "🚀": return (Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA))
+        case "🎯": return (Color(hex: 0xFF4FB6), Color(hex: 0xA855F7))
+        case "🔥": return (Color(hex: 0xFF8A4C), Color(hex: 0xFF4FB6))
+        case "🦋": return (Color(hex: 0xFF8AD8), Color(hex: 0x5EE7FF))
+        case "🦊": return (Color(hex: 0xFFE066), Color(hex: 0xFF8A4C))
+        default:   return (Color(hex: 0xA78BFA), Color(hex: 0x5EE7FF))
+        }
+    }
+
+    private func stickerCell(_ s: Sticker) -> some View {
+        let (c1, c2) = stickerColors(s)
+        return VStack(spacing: 7) {
+            ZStack {
+                if s.unlocked {
+                    // Glow bloom
+                    Text(s.emoji)
+                        .font(.system(size: 34))
+                        .blur(radius: 10)
+                        .opacity(0.55)
+                    Text(s.emoji)
+                        .font(.system(size: 34))
+                } else {
+                    Text(s.emoji)
+                        .font(.system(size: 34))
+                        .blur(radius: 3)
+                        .grayscale(1)
+                        .opacity(0.35)
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.white.opacity(0.65))
+                }
+            }
+            .frame(height: 42)
+
+            Text(s.unlocked ? s.label : "???")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundColor(s.unlocked ? .white : .white.opacity(0.35))
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .padding(.horizontal, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(s.unlocked
+                      ? AnyShapeStyle(LinearGradient(
+                            colors: [c1.opacity(0.22), c2.opacity(0.14)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                      : AnyShapeStyle(Color.white.opacity(0.04)))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(
+                    s.unlocked
+                        ? AnyShapeStyle(LinearGradient(
+                            colors: [c1.opacity(0.80), c2.opacity(0.50)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing))
+                        : AnyShapeStyle(Color.white.opacity(0.10)),
+                    style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ? [] : [4, 3])
+                )
+        )
+        .shadow(color: s.unlocked ? c1.opacity(0.38) : .clear, radius: 12, x: 0, y: 4)
     }
 
     private var heatmapCard: some View {
