@@ -11,6 +11,7 @@ import ZeticMLange
 
 /// Runs the LLM in a detached background task and reports back via callbacks
 func runModel(
+    model: ZeticMLangeLLMModel,
     prompt: String,
     onDownload: @escaping (Float) -> Void,
     onStream: @escaping (String) -> Void,
@@ -23,7 +24,7 @@ func runModel(
                 personalKey: personalToken,
                 name: "changgeun/gemma-4-E2B-it",
                 version: 1,
-                modelMode: .RUN_AUTO,
+                modelMode: .RUN_SPEED,
                 onDownload: { progress in
                     onDownload(progress)
                 }

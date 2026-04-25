@@ -8,9 +8,7 @@
 import SwiftUI
 import ZeticMLange
 
-struct ContentView: View {
-    @State private var mem: Int = 0
-    
+struct ContentView: View {    
     // UI States
     @State private var outputText: String = ""
     @State private var isProcessing: Bool = false
