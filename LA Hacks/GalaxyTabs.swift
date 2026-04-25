@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 // MARK: - Shared
 
@@ -145,7 +146,7 @@ struct StudyTab: View {
                         .padding(.vertical, 13)
                         .background(
                             LinearGradient(
-                                colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                                colors:[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -160,7 +161,7 @@ struct StudyTab: View {
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(LinearGradient(
-                    colors: [Color(hex: 0xFF8AD8, opacity: 0.22), Color(hex: 0xFFE066, opacity: 0.18)],
+                    colors:[Color(hex: 0xFF8AD8, opacity: 0.22), Color(hex: 0xFFE066, opacity: 0.18)],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 ))
         )
@@ -188,7 +189,7 @@ struct StudyTab: View {
                 .background(
                     Circle().fill(
                         RadialGradient(
-                            colors: [q.accent.opacity(0.33), q.accent.opacity(0.07)],
+                            colors:[q.accent.opacity(0.33), q.accent.opacity(0.07)],
                             center: .center, startRadius: 0, endRadius: 22
                         )
                     )
@@ -228,7 +229,7 @@ struct StudyTab: View {
                 Capsule().fill(
                     primary
                     ? AnyShapeStyle(LinearGradient(
-                        colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
+                        colors:[Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
                         startPoint: .topLeading, endPoint: .bottomTrailing))
                     : AnyShapeStyle(Color.white.opacity(0.08))
                 )
@@ -293,7 +294,7 @@ struct PathsTab: View {
             title: "Pizza Master Trip",
             kicker: "🍕 SLICE & SHARE",
             desc: "Slice, share, and add fractions like a pizza wizard!",
-            stars: ["Halves","Read","Equal","Compare","Add","Mixed","Simplify"],
+            stars:["Halves", "Read", "Equal", "Compare", "Add", "Mixed", "Simplify"],
             progress: 0.4, minutes: 80,
             hue: Color(hex: 0xFF8AD8),
             reward: "🍕 Pizza Chef sticker"
@@ -303,7 +304,7 @@ struct PathsTab: View {
             title: "Space Explorer",
             kicker: "🪐 BLAST OFF",
             desc: "Visit every planet and become Earth's tiniest astronaut!",
-            stars: ["Sun","Seasons","Weather","Water","Planets"],
+            stars:["Sun", "Seasons", "Weather", "Water", "Planets"],
             progress: 0.55, minutes: 70,
             hue: Color(hex: 0xA78BFA),
             reward: "🚀 Space Cadet badge"
@@ -313,7 +314,7 @@ struct PathsTab: View {
             title: "Story Wizard",
             kicker: "✨ TELL TALES",
             desc: "Read, write, and craft your very own story.",
-            stars: ["Smooth Read","Main Idea","Details","Theme","Story"],
+            stars:["Smooth Read", "Main Idea", "Details", "Theme", "Story"],
             progress: 0.42, minutes: 90,
             hue: Color(hex: 0xFFE066),
             reward: "📖 Wizard hat"
@@ -366,7 +367,7 @@ struct PathsTab: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
-                    colors: [p.hue.opacity(0.13), .clear],
+                    colors:[p.hue.opacity(0.13), .clear],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
             )
@@ -472,10 +473,67 @@ private struct PathStrip: View {
 
 struct NovaAITab: View {
     @State private var prompt: String = ""
-    @State private var outputText: String = ""
+    @State private var rawOutput: String = ""
     @State private var isProcessing: Bool = false
     @State private var downloadProgress: Float = 0.0
     @FocusState private var isPromptFocused: Bool
+
+    // MARK: Thought Channel Parsing Logic
+    
+    private var parsedOutput: String {
+        var text = rawOutput
+        
+        // Strip out complete thought blocks
+        while let startRange = text.range(of: "<|channel>thought") {
+            if let endRange = text.range(of: "<channel|>", range: startRange.upperBound..<text.endIndex) {
+                text.removeSubrange(startRange.lowerBound..<endRange.upperBound)
+            } else {
+                // Thought hasn't ended yet, strip from start to end of string
+                text.removeSubrange(startRange.lowerBound..<text.endIndex)
+                break
+            }
+        }
+        
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let thoughtToken = "<|channel>thought"
+        
+        // Hide partial streams at the very beginning
+        if thoughtToken.hasPrefix(trimmed) {
+            return ""
+        }
+        
+        return trimmed
+    }
+
+    private var currentlyThinking: Bool {
+        if !isProcessing { return false }
+        
+        var text = rawOutput
+        
+        // Check for an unclosed thought block
+        while let startRange = text.range(of: "<|channel>thought") {
+            if let endRange = text.range(of: "<channel|>", range: startRange.upperBound..<text.endIndex) {
+                text.removeSubrange(startRange.lowerBound..<endRange.upperBound)
+            } else {
+                return true
+            }
+        }
+        
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let thoughtToken = "<|channel>thought"
+        
+        // Catch initial streaming of the token
+        if trimmed.isEmpty || thoughtToken.hasPrefix(trimmed) {
+            return true
+        }
+        
+        // Fallback: If we stripped everything and nothing is left, still thinking
+        if parsedOutput.isEmpty {
+            return true
+        }
+        
+        return false
+    }
 
     var body: some View {
         ScrollView {
@@ -497,7 +555,7 @@ struct NovaAITab: View {
                         .padding(.bottom, 16)
                 }
 
-                if !outputText.isEmpty {
+                if !rawOutput.isEmpty || isProcessing {
                     responseCard
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
@@ -561,8 +619,8 @@ struct NovaAITab: View {
                 .background(
                     LinearGradient(
                         colors: isProcessing
-                            ? [Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
-                            : [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                            ?[Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
+                            :[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                 )
@@ -592,7 +650,7 @@ struct NovaAITab: View {
                     Capsule().fill(Color.white.opacity(0.1))
                     Capsule()
                         .fill(LinearGradient(
-                            colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                            colors:[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
                             startPoint: .leading, endPoint: .trailing
                         ))
                         .frame(width: g.size.width * CGFloat(downloadProgress))
@@ -608,24 +666,32 @@ struct NovaAITab: View {
     }
 
     private var responseCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Text("🦊").font(.system(size: 20))
                 Text("NOVA SAYS")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .foregroundColor(Color(hex: 0x5EE7FF))
                 Spacer()
-                if isProcessing {
+                if isProcessing && !currentlyThinking {
                     Text("streaming…")
                         .font(.system(size: 10, weight: .medium, design: .rounded))
                         .foregroundColor(Color(hex: 0xFFE066, opacity: 0.7))
                 }
             }
-            Text(outputText)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundColor(.white)
-                .lineSpacing(3)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            
+            if currentlyThinking {
+                StarOrbitLoadingView()
+            }
+            
+            let finalOutput = parsedOutput
+            if !finalOutput.isEmpty {
+                Text(finalOutput)
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineSpacing(3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .sCard(
             stroke: Color(hex: 0x5EE7FF, opacity: 0.35),
@@ -637,26 +703,209 @@ struct NovaAITab: View {
         guard !isProcessing else { return }
         let userPrompt = prompt
         isProcessing = true
-        outputText = ""
+        rawOutput = ""
         downloadProgress = 0.0
+        
+        let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
 
         runModel(
-            prompt: userPrompt,
+            prompt: completePrompt,
             onDownload: { progress in
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
             onStream: { currentText in
-                DispatchQueue.main.async { self.outputText = currentText }
+                DispatchQueue.main.async { self.rawOutput = currentText }
             },
             onComplete: { error in
                 DispatchQueue.main.async {
                     self.isProcessing = false
                     if let error = error {
-                        self.outputText = "Oops! Nova had a problem: \(error.localizedDescription)"
+                        self.rawOutput = "Oops! Nova had a problem: \(error.localizedDescription)"
                     }
                 }
             }
         )
+    }
+}
+
+// MARK: - Gravity N-Body Simulation Loading View
+
+class NBodyEngine: ObservableObject {
+    struct GravityStar {
+        var position: CGPoint
+        var velocity: CGVector
+        var color: Color
+        var mass: CGFloat
+        var trail: [CGPoint] = []
+    }
+    
+    @Published var stars: [GravityStar] = []
+    private var timer: Timer?
+    
+    func start() {
+        let colors: [Color] = [
+            Color(hex: 0xFFE066), // Yellow (Mastered)
+            Color(hex: 0x5EE7FF), // Cyan (Sleepy)
+            Color(hex: 0xFF8AD8)  // Pink (Learning)
+        ]
+        
+        // Starts the stars 3x further out (compared to the original radius of 16)
+        let R: CGFloat = 55.0
+        
+        stars = (0..<3).map { i in
+            let angle = Double(i) * 2.0 * .pi / 3.0
+            
+            // Vastly more randomness in position
+            let ox = CGFloat.random(in: -15.0...15.0)
+            let oy = CGFloat.random(in: -15.0...15.0)
+            
+            // Entirely random directions with high initial speeds
+            let speed = CGFloat.random(in: 6.0...12.0)
+            let vAngle = Double.random(in: 0...(2 * .pi))
+            
+            let pos = CGPoint(x: R * CGFloat(cos(angle)) + ox, y: R * CGFloat(sin(angle)) + oy)
+            let vel = CGVector(dx: speed * CGFloat(cos(vAngle)), dy: speed * CGFloat(sin(vAngle)))
+            let mass = CGFloat.random(in: 0.8...2.5)
+            
+            return GravityStar(position: pos, velocity: vel, color: colors[i], mass: mass)
+        }
+        
+        timer?.invalidate()
+        
+        let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+            self?.update()
+        }
+        // Attaching to .common so it doesn't freeze during scrolling/touch!
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
+    }
+    
+    func stop() {
+        timer?.invalidate()
+    }
+    
+    private func update() {
+        let G: CGFloat = 80.0
+        let centerPull: CGFloat = 0.008 // Gentle center pull to keep them on-screen
+        let dt: CGFloat = 0.4
+        let damping: CGFloat = 1.0 // NO damping, they will never slow down and stop
+        
+        var newStars = stars
+        for i in 0..<newStars.count {
+            var ax: CGFloat = 0
+            var ay: CGFloat = 0
+            
+            // Gravity from other stars
+            for j in 0..<newStars.count {
+                if i == j { continue }
+                let dx = stars[j].position.x - stars[i].position.x
+                let dy = stars[j].position.y - stars[i].position.y
+                let distSq = dx * dx + dy * dy
+                let dist = sqrt(distSq)
+                
+                // Generous softening to prevent crazy slingshots
+                let force = G * stars[j].mass / (distSq + 200.0)
+                ax += force * (dx / dist)
+                ay += force * (dy / dist)
+            }
+            
+            // Weak gravity towards center to prevent them flying completely off canvas
+            ax -= centerPull * stars[i].position.x
+            ay -= centerPull * stars[i].position.y
+            
+            // Update velocity
+            newStars[i].velocity.dx += ax * dt
+            newStars[i].velocity.dy += ay * dt
+            newStars[i].velocity.dx *= damping
+            newStars[i].velocity.dy *= damping
+            
+            // Update position
+            newStars[i].position.x += newStars[i].velocity.dx * dt
+            newStars[i].position.y += newStars[i].velocity.dy * dt
+            
+            // Update long trail
+            newStars[i].trail.insert(newStars[i].position, at: 0)
+            if newStars[i].trail.count > 35 {
+                newStars[i].trail.removeLast()
+            }
+        }
+        stars = newStars
+    }
+}
+
+private struct StarOrbitLoadingView: View {
+    @StateObject private var engine = NBodyEngine()
+    
+    var body: some View {
+        // Using a ZStack allows the Canvas to perfectly occupy the entire
+        // background card area, letting stars fly all the way to the border.
+        ZStack(alignment: .topLeading) {
+            Canvas { ctx, size in
+                let cx = size.width / 2
+                let cy = size.height / 2
+                
+                for star in engine.stars {
+                    let baseRadius = 2.0 + star.mass * 0.8
+                    
+                    // Draw fading trails
+                    for (idx, pt) in star.trail.enumerated().reversed() {
+                        let progress = 1.0 - (CGFloat(idx) / CGFloat(star.trail.count))
+                        let radius = (baseRadius + 1.5) * progress
+                        
+                        ctx.fill(
+                            Path(ellipseIn: CGRect(x: cx + pt.x - radius, y: cy + pt.y - radius, width: radius * 2, height: radius * 2)),
+                            with: .color(star.color.opacity(progress * 0.5))
+                        )
+                    }
+                    
+                    // Draw leading head
+                    let headX = cx + star.position.x
+                    let headY = cy + star.position.y
+                    
+                    // White core
+                    ctx.fill(
+                        Path(ellipseIn: CGRect(x: headX - baseRadius, y: headY - baseRadius, width: baseRadius * 2, height: baseRadius * 2)),
+                        with: .color(.white)
+                    )
+                    
+                    // Glow bloom proportional to mass
+                    let glowR = baseRadius * 2.8
+                    ctx.fill(
+                        Path(ellipseIn: CGRect(x: headX - glowR, y: headY - glowR, width: glowR * 2, height: glowR * 2)),
+                        with: .color(star.color.opacity(0.8))
+                    )
+                }
+            }
+            .frame(height: 240) // Lots of vertical room for the stars to sling around!
+            .frame(maxWidth: .infinity)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Thinking...")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: 0x5EE7FF))
+                Text("Nova is exploring ideas")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
+            }
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(hex: 0x5EE7FF, opacity: 0.08))
+        )
+        // Hard clip to exactly the shape of the border box so stars reach the absolute edge
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color(hex: 0x5EE7FF, opacity: 0.25), lineWidth: 1.5)
+        )
+        .onAppear {
+            engine.start()
+        }
+        .onDisappear {
+            engine.stop()
+        }
     }
 }
 
@@ -669,7 +918,7 @@ struct YouTab: View {
     /// Deterministic 12 weeks × 7 days heatmap
     private static let days: [Double] = {
         var seed: UInt64 = 17
-        var out: [Double] = []
+        var out:[Double] = []
         for _ in 0..<84 {
             seed = (seed &* 9301 &+ 49297) % 233280
             out.append(Double(seed) / 233280.0)
@@ -683,7 +932,7 @@ struct YouTab: View {
         let label: String
         let unlocked: Bool
     }
-    private let stickers: [Sticker] = [
+    private let stickers:[Sticker] = [
         Sticker(emoji: "🍕", label: "Pizza Pro",    unlocked: true),
         Sticker(emoji: "🚀", label: "Rocket Kid",   unlocked: true),
         Sticker(emoji: "🎯", label: "Sharp Shooter",unlocked: true),
@@ -709,8 +958,7 @@ struct YouTab: View {
         let hue: Color
     }
     private var earnedCount: Int { stickers.filter { $0.unlocked }.count }
-    private var metrics: [Metric] {
-        [
+    private var metrics: [Metric] {[
             Metric(emoji: "⭐", label: "Stars Lit",  value: "23",      total: 47, valueAsInt: 23, sub: nil,         hue: Color(hex: 0xFFE066)),
             Metric(emoji: "🌌", label: "Worlds",     value: "2",       total: 9,  valueAsInt: 2,  sub: nil,         hue: Color(hex: 0xA78BFA)),
             Metric(emoji: "🔥", label: "Streak",     value: "12d",     total: nil,valueAsInt: nil,sub: "best 18d",  hue: Color(hex: 0xFF8A4C)),
@@ -778,7 +1026,7 @@ struct YouTab: View {
                 .frame(width: 80, height: 80)
                 .background(
                     LinearGradient(
-                        colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
+                        colors:[Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                 )
@@ -810,7 +1058,7 @@ struct YouTab: View {
     }
 
     private var metricsGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+        LazyVGrid(columns:[GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
             ForEach(metrics) { m in metricCard(m) }
         }
         .padding(.horizontal, 16)
@@ -937,7 +1185,7 @@ struct YouTab: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(s.unlocked
                       ? AnyShapeStyle(LinearGradient(
-                            colors: [c1.opacity(0.22), c2.opacity(0.14)],
+                            colors:[c1.opacity(0.22), c2.opacity(0.14)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                       : AnyShapeStyle(Color.white.opacity(0.04)))
         )
@@ -946,7 +1194,7 @@ struct YouTab: View {
                 .strokeBorder(
                     s.unlocked
                         ? AnyShapeStyle(LinearGradient(
-                            colors: [c1.opacity(0.80), c2.opacity(0.50)],
+                            colors:[c1.opacity(0.80), c2.opacity(0.50)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                         : AnyShapeStyle(Color.white.opacity(0.10)),
                     style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ? [] : [4, 3])
@@ -1022,7 +1270,7 @@ struct YouTab: View {
                             .background(
                                 Circle().fill(
                                     RadialGradient(
-                                        colors: [r.hue.opacity(0.4), .clear],
+                                        colors:[r.hue.opacity(0.4), .clear],
                                         center: .center, startRadius: 0, endRadius: 18
                                     )
                                 )

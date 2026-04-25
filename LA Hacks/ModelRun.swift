@@ -33,10 +33,10 @@ func runModel(
                     personalKey: personalToken,
                     name: "changgeun/gemma-4-E2B-it",
                     version: 1,
-                    modelMode: .RUN_SPEED,
+                    modelMode: LLMModelMode.RUN_SPEED,
                     onDownload: { progress in
                         onDownload(progress)
-                    }
+                    },
                 )
             }
 
