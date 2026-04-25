@@ -7,10 +7,14 @@
 
 import Foundation
 import ZeticMLange
+import AVFoundation
 
 // MARK: - Global Shared Model
 // Model is declared only once to avoid 5-10s memory initialization between every message
 var sharedModel: ZeticMLangeLLMModel?
+
+// MARK: - Speech Synthesizer
+var synthesizer = AVSpeechSynthesizer()
 
 // MARK: - Model Runner Function
 
@@ -64,4 +68,24 @@ func runModel(
             onComplete(error)
         }
     }
+}
+
+func speak(transcript: String) {
+    // Create an utterance.
+    let utterance = AVSpeechUtterance(string: transcript)
+
+    // Configure the utterance.
+    utterance.rate = 0.57
+    utterance.pitchMultiplier = 0.8
+    utterance.postUtteranceDelay = 0.2
+    utterance.volume = 0.8
+
+    // Retrieve the British English voice.
+    let voice = AVSpeechSynthesisVoice(language: "en-GB")
+
+    // Assign the voice to the utterance.
+    utterance.voice = voice
+
+    // Tell the synthesizer to speak the utterance.
+    synthesizer.speak(utterance)
 }
