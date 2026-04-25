@@ -7,6 +7,7 @@
 
 import SwiftUI
 import ZeticMLange
+import AVFoundation
 
 struct ContentView: View {    
     // UI States
@@ -80,6 +81,20 @@ struct ContentView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(isProcessing)
+            
+            Button("Speak") {
+                speak(transcript: prompt)
+            }
+        }
+        .onAppear {
+            do {
+                // Initialize audio synthesizer
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .default, options: [])
+                try session.setActive(true)
+            } catch {
+                print("Failed to set audio session category: \(error)")
+            }
         }
         .padding()
     }
