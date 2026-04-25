@@ -32,6 +32,17 @@ struct StarPalette {
     let label: String
 }
 
+struct StarParticle {
+    let x: CGFloat
+    let y: CGFloat
+    let r: CGFloat
+    let o: Double
+    let tw: Double
+    let td: Double
+    let warm: Bool
+    let animate: Bool
+}
+
 extension StarStatus {
     /// Brighter, juicier kid-friendly palette from galaxy.jsx STAR_COLORS.
     var palette: StarPalette {
@@ -118,6 +129,49 @@ struct Constellation: Identifiable, Hashable {
             }
         }
         return total / Double(max(nodes.count, 1))
+    }
+}
+
+// MARK: - Convex hull + bounding box
+
+/// Graham scan — returns hull vertices in counter-clockwise order.
+/// Falls back to the original points when fewer than 3 are provided.
+func convexHull(of points: [CGPoint]) -> [CGPoint] {
+    guard points.count >= 3 else { return points }
+    // Pivot: lowest y, break ties by leftmost x
+    let pivot = points.min { $0.y < $1.y || ($0.y == $1.y && $0.x < $1.x) }!
+    let rest = points.filter { $0 != pivot }.sorted { a, b in
+        let ta = atan2(a.y - pivot.y, a.x - pivot.x)
+        let tb = atan2(b.y - pivot.y, b.x - pivot.x)
+        if ta != tb { return ta < tb }
+        return hypot(a.x - pivot.x, a.y - pivot.y) < hypot(b.x - pivot.x, b.y - pivot.y)
+    }
+    var hull = [pivot]
+    for p in rest {
+        while hull.count >= 2 {
+            let a = hull[hull.count - 2], b = hull.last!
+            // z-component of (b−a) × (p−a); non-positive means right turn → pop
+            let cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+            if cross <= 0 { hull.removeLast() } else { break }
+        }
+        hull.append(p)
+    }
+    return hull
+}
+
+extension Constellation {
+    /// Axis-aligned bounding rect derived from the convex hull of star positions,
+    /// expanded by `padding` on every side.
+    func boundingRect(padding: CGFloat = 80) -> CGRect {
+        let pts = nodes.map(\.point)
+        let hull = convexHull(of: pts)
+        let verts = hull.isEmpty ? pts : hull
+        guard !verts.isEmpty else { return .zero }
+        let minX = verts.map(\.x).min()! - padding
+        let minY = verts.map(\.y).min()! - padding
+        let maxX = verts.map(\.x).max()! + padding
+        let maxY = verts.map(\.y).max()! + padding
+        return CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
     }
 }
 
@@ -415,6 +469,37 @@ enum GalaxyData {
             out.append((x, y, r, o, tw, td))
         }
         return out
+    }()
+
+    /// Three-layer parallax star field matching design's STAR_LAYERS.
+    static let starLayers: (far: [StarParticle], mid: [StarParticle], near: [StarParticle]) = {
+        var seed: UInt64 = 13
+        func rand() -> Double {
+            seed = (seed &* 9301 &+ 49297) % 233280
+            return Double(seed) / 233280.0
+        }
+        func make(_ count: Int, rMin: Double, rMax: Double, oMin: Double, oMax: Double, animate: Bool) -> [StarParticle] {
+            var arr = [StarParticle]()
+            arr.reserveCapacity(count)
+            for _ in 0..<count {
+                arr.append(StarParticle(
+                    x: CGFloat(rand() * 1600 - 300),
+                    y: CGFloat(rand() * 2600 - 500),
+                    r: CGFloat(rand() * (rMax - rMin) + rMin),
+                    o: rand() * (oMax - oMin) + oMin,
+                    tw: rand() * 5 + 2,
+                    td: rand() * 6,
+                    warm: rand() > 0.7,
+                    animate: animate
+                ))
+            }
+            return arr
+        }
+        return (
+            far:  make(1200, rMin: 0.12, rMax: 0.55, oMin: 0.10, oMax: 0.38, animate: false),
+            mid:  make(500,  rMin: 0.4,  rMax: 1.1,  oMin: 0.38, oMax: 0.68, animate: true),
+            near: make(140,  rMin: 1.1,  rMax: 2.4,  oMin: 0.65, oMax: 1.0,  animate: true)
+        )
     }()
 
     /// Stats for the top header.

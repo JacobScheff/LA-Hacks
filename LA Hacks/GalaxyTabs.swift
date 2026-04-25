@@ -664,6 +664,7 @@ struct NovaAITab: View {
 
 struct YouTab: View {
     @State private var showSettings = false
+    @Environment(UserSettings.self) var userSettings
 
     /// Deterministic 12 weeks × 7 days heatmap
     private static let days: [Double] = {
@@ -772,7 +773,7 @@ struct YouTab: View {
 
     private var hero: some View {
         HStack(spacing: 16) {
-            Text("🦊")
+            Text(userSettings.avatar)
                 .font(.system(size: 40))
                 .frame(width: 80, height: 80)
                 .background(
@@ -793,11 +794,11 @@ struct YouTab: View {
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .tracking(0.5)
                     .foregroundColor(Color(hex: 0xFFE066))
-                Text("Maya the Brave")
+                Text(userSettings.explorerName)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .tracking(-0.3)
                     .foregroundColor(.white)
-                Text("Exploring since January · 4th grade")
+                Text("Exploring since January · \(userSettings.grade) grade")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.top, 3)
@@ -1066,9 +1067,7 @@ struct YouTab: View {
 struct SettingsTab: View {
     let onBack: () -> Void
 
-    @State private var avatar: String = "🦊"
-    @State private var explorerName: String = "Maya the Brave"
-    @State private var grade: String = "4th"
+    @Environment(UserSettings.self) var userSettings
     @State private var soundOn: Bool = true
     @State private var musicOn: Bool = true
     @State private var notifOn: Bool = true
@@ -1128,20 +1127,20 @@ struct SettingsTab: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(avatars, id: \.self) { a in
-                            Button(action: { avatar = a }) {
+                            Button(action: { userSettings.avatar = a }) {
                                 Text(a).font(.system(size: 26))
                                     .frame(width: 48, height: 48)
                                     .background(
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(avatar == a
+                                            .fill(userSettings.avatar == a
                                                   ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x5EE7FF, opacity: 0.3), Color(hex: 0xA78BFA, opacity: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                                   : AnyShapeStyle(Color.white.opacity(0.06)))
                                     )
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(avatar == a ? Color(hex: 0x5EE7FF) : Color.clear, lineWidth: 2)
+                                            .stroke(userSettings.avatar == a ? Color(hex: 0x5EE7FF) : Color.clear, lineWidth: 2)
                                     )
-                                    .animation(.easeOut(duration: 0.15), value: avatar == a)
+                                    .animation(.easeOut(duration: 0.15), value: userSettings.avatar == a)
                             }
                             .buttonStyle(.plain)
                         }
@@ -1155,7 +1154,10 @@ struct SettingsTab: View {
                 SettingsLabel("Explorer name")
                 if editingName {
                     HStack(spacing: 8) {
-                        TextField("Explorer name", text: $explorerName)
+                        TextField("Explorer name", text: Binding(
+                            get: { userSettings.explorerName },
+                            set: { userSettings.explorerName = $0 }
+                        ))
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
                             .padding(.horizontal, 12).padding(.vertical, 10)
@@ -1183,7 +1185,7 @@ struct SettingsTab: View {
                 } else {
                     Button(action: { editingName = true }) {
                         HStack {
-                            Text(explorerName)
+                            Text(userSettings.explorerName)
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white)
                             Spacer()
@@ -1211,18 +1213,18 @@ struct SettingsTab: View {
                 SettingsLabel("Grade")
                 FlexWrap(spacing: 6) {
                     ForEach(grades, id: \.self) { g in
-                        Button(action: { grade = g }) {
+                        Button(action: { userSettings.grade = g }) {
                             Text(g)
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(grade == g ? Color(hex: 0x1A0B40) : .white.opacity(0.75))
+                                .foregroundColor(userSettings.grade == g ? Color(hex: 0x1A0B40) : .white.opacity(0.75))
                                 .padding(.horizontal, 14).padding(.vertical, 8)
                                 .background(
-                                    Capsule().fill(grade == g
+                                    Capsule().fill(userSettings.grade == g
                                                    ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8AD8)], startPoint: .leading, endPoint: .trailing))
                                                    : AnyShapeStyle(Color.white.opacity(0.07)))
                                 )
-                                .shadow(color: grade == g ? Color(hex: 0xFFE066, opacity: 0.35) : .clear, radius: 8)
-                                .animation(.easeOut(duration: 0.15), value: grade == g)
+                                .shadow(color: userSettings.grade == g ? Color(hex: 0xFFE066, opacity: 0.35) : .clear, radius: 8)
+                                .animation(.easeOut(duration: 0.15), value: userSettings.grade == g)
                         }
                         .buttonStyle(.plain)
                     }
