@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  LA Hacks
 //
-//  Created by Jacob Scheff on 4/24/26.
+//  Hosts the Learning Galaxy — Polaris Learning Atlas.
 //
 
 import SwiftUI
