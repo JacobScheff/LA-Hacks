@@ -407,7 +407,7 @@ struct PathsTab: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 LinearGradient(
-                    colors: [p.hue.opacity(0.13), .clear],
+                    colors:[p.hue.opacity(0.13), .clear],
                     startPoint: .topLeading, endPoint: .bottomTrailing
                 )
             )
@@ -436,7 +436,7 @@ struct PathsTab: View {
                         .padding(.vertical, 10)
                         .background(
                             LinearGradient(
-                                colors:[p.hue, p.hue.opacity(0.7)],
+                                colors: [p.hue, p.hue.opacity(0.7)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -775,7 +775,7 @@ class NBodyEngine: ObservableObject {
         var trail: [CGPoint] = []
     }
     
-    @Published var stars:[GravityStar] = []
+    @Published var stars: [GravityStar] = []
     private var timer: Timer?
     
     func start() {
@@ -791,7 +791,7 @@ class NBodyEngine: ObservableObject {
         stars = (0..<3).map { i in
             let angle = Double(i) * 2.0 * .pi / 3.0
             
-            // Random positional offset
+            // Vastly more randomness in position
             let ox = CGFloat.random(in: -15.0...15.0)
             let oy = CGFloat.random(in: -15.0...15.0)
             
@@ -807,9 +807,13 @@ class NBodyEngine: ObservableObject {
         }
         
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
+        
+        let t = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
             self?.update()
         }
+        // Attaching to .common so it doesn't freeze during scrolling/touch!
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
     
     func stop() {
@@ -869,21 +873,9 @@ private struct StarOrbitLoadingView: View {
     @StateObject private var engine = NBodyEngine()
     
     var body: some View {
-        VStack(spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Thinking...")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: 0x5EE7FF))
-                    Text("Nova is exploring ideas")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.6))
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 14)
-            .padding(.top, 14)
-
+        // Using a ZStack allows the Canvas to perfectly occupy the entire
+        // background card area, letting stars fly all the way to the border.
+        ZStack(alignment: .topLeading) {
             Canvas { ctx, size in
                 let cx = size.width / 2
                 let cy = size.height / 2
@@ -922,22 +914,34 @@ private struct StarOrbitLoadingView: View {
             }
             .frame(height: 240) // Lots of vertical room for the stars to sling around!
             .frame(maxWidth: .infinity)
-            .onAppear {
-                engine.start()
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Thinking...")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: 0x5EE7FF))
+                Text("Nova is exploring ideas")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
             }
-            .onDisappear {
-                engine.stop()
-            }
+            .padding(.horizontal, 14)
+            .padding(.top, 14)
         }
-        .padding(.bottom, 14)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(Color(hex: 0x5EE7FF, opacity: 0.08))
         )
+        // Hard clip to exactly the shape of the border box so stars reach the absolute edge
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color(hex: 0x5EE7FF, opacity: 0.25), lineWidth: 1.5)
         )
+        .onAppear {
+            engine.start()
+        }
+        .onDisappear {
+            engine.stop()
+        }
     }
 }
 
@@ -945,9 +949,9 @@ private struct StarOrbitLoadingView: View {
 
 struct YouTab: View {
     /// Deterministic 12 weeks × 7 days heatmap
-    private static let days:[Double] = {
+    private static let days: [Double] = {
         var seed: UInt64 = 17
-        var out: [Double] = []
+        var out:[Double] = []
         for _ in 0..<84 {
             seed = (seed &* 9301 &+ 49297) % 233280
             out.append(Double(seed) / 233280.0)
@@ -961,7 +965,7 @@ struct YouTab: View {
         let label: String
         let unlocked: Bool
     }
-    private let stickers: [Sticker] = [
+    private let stickers:[Sticker] = [
         Sticker(emoji: "🍕", label: "Pizza Pro",    unlocked: true),
         Sticker(emoji: "🚀", label: "Rocket Kid",   unlocked: true),
         Sticker(emoji: "🎯", label: "Sharp Shooter",unlocked: true),
