@@ -647,13 +647,6 @@ struct LessonView: View {
             constellationId: constellationId
         )
 
-        // Notify QuestStore so the Quests tab can mark this quest as complete.
-        NotificationCenter.default.post(
-            name: .lessonCompleted,
-            object: nil,
-            userInfo: ["nodeId": node.id, "xp": capXP]
-        )
-
         // Show celebration overlay for each newly earned sticker
         let newIds = UserSettings.shared.recentlyUnlocked
         if !newIds.isEmpty {
@@ -801,6 +794,37 @@ struct NovaAvatarView: View {
     }
 }
 
+// MARK: - Markdown-aware text renderer
+//
+// Uses AttributedString(markdown:) so Nova's messages can contain:
+//   **bold**  *italic*  `code`  ~~strikethrough~~  [link](url)
+// Falls back to plain Text if the string fails to parse (shouldn't happen in practice).
+// .inlineOnlyPreservingWhitespace keeps newlines but skips block-level syntax
+// (headers, HR, fenced code blocks) which would look wrong in a chat bubble.
+
+private struct MarkdownText: View {
+    let text: String
+    var fontSize: CGFloat = 14.5
+    var weight: Font.Weight = .regular
+    var color: Color = Color(hex: 0xE8D8FF)
+    var lineSpacing: CGFloat = 2
+
+    private var attributed: AttributedString {
+        let opts = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace
+        )
+        return (try? AttributedString(markdown: text, options: opts))
+            ?? AttributedString(text)
+    }
+
+    var body: some View {
+        Text(attributed)
+            .font(.system(size: fontSize, weight: weight, design: .rounded))
+            .foregroundColor(color)
+            .lineSpacing(lineSpacing)
+    }
+}
+
 // MARK: - Chat bubble
 
 private struct MsgBubble: View {
@@ -820,20 +844,20 @@ private struct MsgBubble: View {
     private var novaBubble: some View {
         HStack(alignment: .bottom, spacing: 8) {
             NovaAvatarView(size: 26, pal: pal)
-            Text(msg.text)
-                .font(.system(size: 14.5, weight: .regular, design: .rounded))
-                .foregroundColor(msg.isHint ? Color(hex: 0x5EE7FF) : Color(hex: 0xE8D8FF))
-                .lineSpacing(2)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(msg.isHint ? Color(hex: 0x5EE7FF, opacity: 0.1) : Color(hex: 0x201048, opacity: 0.9))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(msg.isHint ? Color(hex: 0x5EE7FF, opacity: 0.3) : Color.white.opacity(0.08), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
+            MarkdownText(
+                text: msg.text,
+                color: msg.isHint ? Color(hex: 0x5EE7FF) : Color(hex: 0xE8D8FF)
+            )
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(msg.isHint ? Color(hex: 0x5EE7FF, opacity: 0.1) : Color(hex: 0x201048, opacity: 0.9))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(msg.isHint ? Color(hex: 0x5EE7FF, opacity: 0.3) : Color.white.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
             Spacer(minLength: 44)
         }
     }
