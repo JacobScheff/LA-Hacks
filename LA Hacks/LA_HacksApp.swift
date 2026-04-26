@@ -15,6 +15,15 @@ struct LA_HacksApp: App {
         WindowGroup {
             ContentView()
                 .environment(userSettings)
+                .onAppear {
+                    NotificationManager.shared.requestPermission { granted in
+                        guard granted, userSettings.notifOn else { return }
+                        NotificationManager.shared.scheduleDailyReminder(
+                            time: userSettings.notifTime,
+                            name: userSettings.explorerName
+                        )
+                    }
+                }
         }
     }
 }

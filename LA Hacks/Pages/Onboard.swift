@@ -23,12 +23,12 @@ enum OnboardStep {
 
 struct Onboard: View {
     @AppStorage("onboarded") private var onboarded: Bool = false
-    
+
     @State private var step: OnboardStep = .intro
     @State private var downloadProgress: Float = 0.0
     @State private var userName: String = ""
     @State private var selectedInterests: Set<String> = []
-    
+
     var body: some View {
         ZStack {
             // Shared Deep Space Backdrop
@@ -42,7 +42,7 @@ struct Onboard: View {
                 dustOverlay
             }
             .ignoresSafeArea()
-            
+
             // Step Routing
             switch step {
             case .intro:
@@ -72,13 +72,13 @@ struct Onboard: View {
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: step)
         .preferredColorScheme(.dark)
     }
-    
+
     // MARK: - Views
-    
+
     private var introView: some View {
         VStack(spacing: 24) {
             Spacer()
-            
+
             ZStack {
                 Circle()
                     .fill(LinearGradient(
@@ -91,13 +91,13 @@ struct Onboard: View {
                     .font(.system(size: 32))
                     .offset(x: 45, y: -40)
             }
-            
+
             VStack(spacing: 12) {
                 Text("Welcome to Star Hop!")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .tracking(-0.5)
                     .foregroundColor(.white)
-                
+
                 Text("Nova is a super-smart AI fox who lives on your device. To help you learn anything, we need to download Nova's brain!")
                     .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.8))
@@ -105,7 +105,7 @@ struct Onboard: View {
                     .lineSpacing(4)
                     .padding(.horizontal, 24)
             }
-            
+
             VStack(spacing: 8) {
                 HStack(spacing: 6) {
                     Text("⚠️").font(.system(size: 14))
@@ -119,9 +119,9 @@ struct Onboard: View {
                 .overlay(Capsule().stroke(Color(hex: 0xFFE066, opacity: 0.4), lineWidth: 1.5))
             }
             .padding(.top, 8)
-            
+
             Spacer()
-            
+
             Button(action: startModelDownload) {
                 Text("🚀 Download Nova's Brain")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
@@ -142,11 +142,11 @@ struct Onboard: View {
             .padding(.bottom, 40)
         }
     }
-    
+
     private var startingView: some View {
         VStack(spacing: 30) {
             Spacer()
-            
+
             TimelineView(.animation) { context in
                 let t = context.date.timeIntervalSinceReferenceDate
                 ZStack {
@@ -161,17 +161,17 @@ struct Onboard: View {
                 }
                 .frame(width: 200, height: 200)
             }
-            
+
             VStack(spacing: 12) {
                 Text("Waking up the stars...")
                     .font(.system(size: 24, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
-                
+
                 Text("Warming up Nova's engines. Hold tight!")
                     .font(.system(size: 14, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.6))
             }
-            
+
             VStack(spacing: 8) {
                 GeometryReader { g in
                     ZStack(alignment: .leading) {
@@ -186,26 +186,26 @@ struct Onboard: View {
                     }
                 }
                 .frame(height: 10)
-                
+
                 Text(String(format: "Starting up... %.0f%%", min(100, (downloadProgress / 0.07) * 100)))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundColor(Color(hex: 0x5EE7FF))
             }
             .padding(.horizontal, 40)
-            
+
             Spacer()
         }
     }
-    
+
     private var nameView: some View {
         VStack(alignment: .leading, spacing: 20) {
             Spacer().frame(height: 60)
-            
+
             Text("What's your name, Captain?")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .padding(.horizontal, 24)
-            
+
             TextField("", text: $userName, prompt: Text("Enter your name...").foregroundColor(.white.opacity(0.4)))
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
@@ -220,9 +220,9 @@ struct Onboard: View {
                         .stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 2)
                 )
                 .padding(.horizontal, 24)
-            
+
             Spacer()
-            
+
             Button(action: { step = .interests }) {
                 Text("Next →")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
@@ -244,28 +244,28 @@ struct Onboard: View {
             .padding(.bottom, 40)
         }
     }
-    
+
     private var interestsView: some View {
         VStack(alignment: .leading, spacing: 20) {
             Spacer().frame(height: 60)
-            
+
             Text("Pick your favorite missions!")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
                 .padding(.horizontal, 24)
-            
+
             Text("We'll map out stars tailored just for you.")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundColor(.white.opacity(0.7))
                 .padding(.horizontal, 24)
                 .padding(.top, -10)
-            
+
             let chips = [
                 ("Space", "🪐"), ("Dinosaurs", "🦖"), ("Math", "➗"),
                 ("Reading", "📖"), ("Art", "🎨"), ("Coding", "💻"),
                 ("Animals", "🦊"), ("History", "🏛️")
             ]
-            
+
             LazyVGrid(columns:[GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(chips, id: \.0) { chip in
                     let isSelected = selectedInterests.contains(chip.0)
@@ -296,9 +296,9 @@ struct Onboard: View {
                 }
             }
             .padding(.horizontal, 24)
-            
+
             Spacer()
-            
+
             Button(action: { step = .game }) {
                 Text("Let's go! 🚀")
                     .font(.system(size: 17, weight: .bold, design: .rounded))
@@ -320,12 +320,12 @@ struct Onboard: View {
             .padding(.bottom, 40)
         }
     }
-    
+
     // MARK: - Handlers
-    
+
     private func startModelDownload() {
         step = .starting
-        
+
         Task.detached {
             do {
                 if sharedModel == nil {
@@ -339,7 +339,7 @@ struct Onboard: View {
                         onDownload: { progress in
                             DispatchQueue.main.async {
                                 self.downloadProgress = progress
-                                
+
                                 // Reached initial threshold -> move to interactive setup
                                 if self.step == .starting && progress >= 0.07 {
                                     self.step = .name
@@ -348,11 +348,11 @@ struct Onboard: View {
                         }
                     )
                 }
-                
+
                 // When finished downloading and loading model (or if already fully loaded):
                 DispatchQueue.main.async {
                     self.downloadProgress = 1.0
-                    
+
                     // Fix: If it was completely instant (already downloaded),
                     // advance the step so the user doesn't get stuck at 100%.
                     if self.step == .starting {
@@ -364,13 +364,13 @@ struct Onboard: View {
                         }
                     }
                 }
-                
+
             } catch {
                 print("Model Download/Init Failed: \(error)")
             }
         }
     }
-    
+
     // Abstracted Faint Star Background
     private var dustOverlay: some View {
         Canvas { ctx, size in
@@ -392,189 +392,15 @@ struct Onboard: View {
     }
 }
 
-// MARK: - Waiting Minigame
-
-private struct MinigameView: View {
-    let progress: Float
-    let onStartAdventure: () -> Void
-    
-    @StateObject private var engine = GameEngine()
-    
-    var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                // Game Canvas
-                Canvas { ctx, size in
-                    // Draw Stars (parallax background)
-                    for star in engine.stars {
-                        ctx.fill(
-                            Path(ellipseIn: CGRect(x: star.x, y: star.y, width: star.size, height: star.size)),
-                            with: .color(.white.opacity(star.opacity))
-                        )
-                    }
-                    
-                    // Draw Asteroids
-                    for ast in engine.asteroids {
-                        let text = Text(ast.emoji).font(.system(size: ast.size))
-                        ctx.draw(text, at: CGPoint(x: ast.x, y: ast.y))
-                    }
-                    
-                    // Draw Rocket
-                    if !engine.isGameOver {
-                        let rocket = Text("🚀").font(.system(size: 40))
-                        ctx.draw(rocket, at: CGPoint(x: engine.rocketX, y: size.height - 100))
-                    } else {
-                        let boom = Text("💥").font(.system(size: 50))
-                        ctx.draw(boom, at: CGPoint(x: engine.rocketX, y: size.height - 100))
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black.opacity(0.1))
-                
-                // Interaction Layer
-                Color.clear
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { v in
-                                if !engine.isGameOver {
-                                    engine.rocketX = min(max(20, engine.dragStartX + v.translation.width), geo.size.width - 20)
-                                }
-                            }
-                            .onEnded { _ in
-                                engine.dragStartX = engine.rocketX
-                            }
-                    )
-                
-                // Top HUD
-                VStack {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text("ASTEROID DODGER")
-                                .font(.system(size: 11, weight: .bold, design: .rounded))
-                                .foregroundColor(Color(hex: 0xFFE066))
-                            Text("Score: \(engine.score)")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                        }
-                        Spacer()
-                        
-                        // Download Status Pill
-                        HStack(spacing: 6) {
-                            if progress >= 1.0 {
-                                Text("✅").font(.system(size: 12))
-                                Text("Brain Downloaded!")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundColor(Color(hex: 0xA0F0A0))
-                            } else {
-                                ProgressView()
-                                    .tint(.white)
-                                    .scaleEffect(0.7)
-                                Text(String(format: "Downloading... %.0f%%", progress * 100))
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(Color.white.opacity(0.1)))
-                        .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1.5))
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 60)
-                    Spacer()
-                }
-                
-                // Game Over Overlay
-                if engine.isGameOver {
-                    VStack(spacing: 20) {
-                        Text("💥 CRASHED!")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .padding(.top, 20)
-                        
-                        Text("Final Score: \(engine.score)")
-                            .font(.system(size: 18, weight: .medium, design: .rounded))
-                            .foregroundColor(Color(hex: 0xFFE066))
-                        
-                        if progress >= 1.0 {
-                            Button(action: onStartAdventure) {
-                                Text("🚀 Start Adventure!")
-                                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                                    .foregroundColor(Color(hex: 0x1A0B40))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(
-                                        LinearGradient(
-                                            colors:[Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
-                                            startPoint: .topLeading, endPoint: .bottomTrailing
-                                        )
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                    .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.5), radius: 16, x: 0, y: 6)
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.top, 10)
-                            
-                            Button(action: { engine.reset(width: geo.size.width) }) {
-                                Text("Play Again")
-                                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .padding(.vertical, 12)
-                            }
-                            .buttonStyle(.plain)
-                            
-                        } else {
-                            Text("Nova is still downloading...")
-                                .font(.system(size: 14, weight: .medium, design: .rounded))
-                                .foregroundColor(.white.opacity(0.7))
-                                .padding(.top, 10)
-                            
-                            Button(action: { engine.reset(width: geo.size.width) }) {
-                                Text("Play Again 🔄")
-                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color.white.opacity(0.15))
-                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 1.5)
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color(hex: 0x140A32, opacity: 0.95))
-                            .shadow(color: .black.opacity(0.5), radius: 20)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .stroke(Color(hex: 0xFFE066, opacity: 0.3), lineWidth: 1.5)
-                    )
-                    .padding(.horizontal, 40)
-                }
-            }
-            .onAppear {
-                engine.setup(width: geo.size.width, height: geo.size.height)
-            }
-        }
-    }
-}
-
 // MARK: - Game Engine State
 
 class GameEngine: ObservableObject {
     @Published var rocketX: CGFloat = 200
     @Published var isGameOver: Bool = false
     @Published var score: Int = 0
-    
+
     var dragStartX: CGFloat = 200
-    
+
     struct Asteroid {
         let id = UUID()
         var x: CGFloat
@@ -583,7 +409,7 @@ class GameEngine: ObservableObject {
         var size: CGFloat
         var emoji: String
     }
-    
+
     struct Star {
         var x: CGFloat
         var y: CGFloat
@@ -591,21 +417,21 @@ class GameEngine: ObservableObject {
         var size: CGFloat
         var opacity: Double
     }
-    
+
     @Published var asteroids: [Asteroid] = []
     @Published var stars: [Star] = []
-    
+
     private var screenWidth: CGFloat = 400
     private var screenHeight: CGFloat = 800
     private var timer: Timer?
     private var frames: Int = 0
-    
+
     func setup(width: CGFloat, height: CGFloat) {
         self.screenWidth = width
         self.screenHeight = height
         reset(width: width)
     }
-    
+
     func reset(width: CGFloat) {
         rocketX = width / 2
         dragStartX = width / 2
@@ -613,7 +439,7 @@ class GameEngine: ObservableObject {
         score = 0
         frames = 0
         isGameOver = false
-        
+
         // Generate initial parallax stars
         stars = (0..<40).map { _ in
             Star(
@@ -624,23 +450,23 @@ class GameEngine: ObservableObject {
                 opacity: Double.random(in: 0.2...0.8)
             )
         }
-        
+
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] _ in
             self?.update()
         }
     }
-    
+
     private func update() {
         guard !isGameOver else { return }
         frames += 1
-        
+
         // Base Speed and Spawn Rate increase over time
         let difficultyMultiplier = 1.0 + CGFloat(frames) / 1800.0 // increases slightly every 30s
-        
+
         // Score updates
         if frames % 10 == 0 { score += 1 }
-        
+
         // Move Stars
         for i in stars.indices {
             stars[i].y += stars[i].speed * difficultyMultiplier
@@ -649,15 +475,15 @@ class GameEngine: ObservableObject {
                 stars[i].x = CGFloat.random(in: 0...screenWidth)
             }
         }
-        
+
         // Move Asteroids
         for i in asteroids.indices {
             asteroids[i].y += asteroids[i].speed * difficultyMultiplier
         }
-        
+
         // Cleanup offscreen Asteroids
         asteroids.removeAll { $0.y > screenHeight + 50 }
-        
+
         // Spawn Asteroids
         let spawnChance = 0.03 * Double(difficultyMultiplier)
         if Double.random(in: 0...1) < spawnChance {
@@ -671,11 +497,11 @@ class GameEngine: ObservableObject {
                 emoji: emojis.randomElement()!
             ))
         }
-        
+
         // Collision Detection (Rocket Y is fixed at screenHeight - 100)
         let rocketY = screenHeight - 100
         let rocketRadius: CGFloat = 20
-        
+
         for ast in asteroids {
             let hitRadius = (ast.size / 2) * 0.8 // slightly forgiving hitbox
             let dist = hypot(rocketX - ast.x, rocketY - ast.y)
@@ -686,7 +512,7 @@ class GameEngine: ObservableObject {
             }
         }
     }
-    
+
     deinit {
         timer?.invalidate()
     }
