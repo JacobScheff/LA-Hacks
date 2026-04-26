@@ -255,13 +255,6 @@ enum RAGPipeline {
         if !memContext.isEmpty {
             prompt += "\n## 🧠 Student Memory\n\(memContext)\n"
         }
-        
-        // ── Weak concept reinforcement ────────────────────────────────
-        let bktSummary = BKTMastery.shared.summaryForPrompt()
-        if !bktSummary.isEmpty {
-            prompt += "\n\n## 🔁 Concepts to Reinforce\n\(bktSummary)\n"
-            prompt += "Weave in gentle review or extra encouragement for these topics naturally during the lesson.\n"
-        }
 
         prompt += "\nNow respond to \(context.studentName)'s message below. Remember: 3–4 sentences max! 🚀\n"
         return prompt
