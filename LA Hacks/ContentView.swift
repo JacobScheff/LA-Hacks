@@ -21,24 +21,25 @@ struct ContentView: View {
     // Monitor if connected to wifi
     let monitor = NWPathMonitor()
     let queue = DispatchQueue(label: "NetworkMonitor")
+    
+    @State var startedMonitor = false
 
     var body: some View {
-        // Empty element to run code from
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                monitor.pathUpdateHandler = { path in
-                    if path.status == .satisfied {
-                        isConnected = true
-                    } else {
-                        isConnected = false
-                    }
-                }
-                monitor.start(queue: queue)
-            }
-                
         if !onboarded {
             Onboard()
+                .onAppear {
+                    if (!startedMonitor) {
+                        monitor.pathUpdateHandler = { path in
+                            if path.status == .satisfied {
+                                isConnected = true
+                            } else {
+                                isConnected = false
+                            }
+                        }
+                        monitor.start(queue: queue)
+                        startedMonitor = true
+                    }
+                }
         } else {
             LearningGalaxyView()
                 .onAppear {
@@ -47,6 +48,18 @@ struct ContentView: View {
                         let session = AVAudioSession.sharedInstance()
                         try session.setCategory(.playback, mode: .default, options: [])
                         try session.setActive(true)
+                        
+                        if (!startedMonitor) {
+                            monitor.pathUpdateHandler = { path in
+                                if path.status == .satisfied {
+                                    isConnected = true
+                                } else {
+                                    isConnected = false
+                                }
+                            }
+                            monitor.start(queue: queue)
+                            startedMonitor = true
+                        }
                     } catch {
                         print("Failed to set audio session category: \(error)")
                     }
