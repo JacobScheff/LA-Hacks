@@ -7,7 +7,9 @@
 //
 
 import SwiftUI
-import AVFoundation
+
+var streamedResponse: String = ""
+var lastAnswerCorrect: Bool? = nil
 
 // MARK: - Problem types (unchanged)
 
@@ -174,6 +176,8 @@ private struct ChatMsg: Identifiable {
     var statsXP: Int = 0
     var statsHearts: Int = 3
     var statsHints: Int = 0
+    var answerResult: AnswerResult? = nil
+    enum AnswerResult { case correct, incorrect }
 }
 
 // MARK: - Input area state
@@ -200,64 +204,24 @@ struct LessonView: View {
     @State private var streak = 0
     @State private var hintsUsed = 0
     @State private var phase: Phase = .intro
+    @State private var qIdx = 0
+    @State private var hintShown = false
     @State private var questionKey = 0
+    @State private var chatBreakInput: String = ""
+    @FocusState private var chatBreakFocused: Bool
 
-    // Adaptive flow state.
-    @State private var opening: LessonOpening?
-    @State private var currentProblem: LessonProblem?
-    @State private var pastOutcomes: [PastProblemOutcome] = []
-    @State private var attempts: Int = 0
-    @State private var isThinking = false
-    @State private var thinkingCaption: String = "Thinking…"
-    @State private var didKickoffGeneration = false
+    enum Phase { case intro, example, practice, chatBreak, celebrate }
 
-    // #3 Voice mode — Nova reads her lines aloud when on.
-    @AppStorage("lesson.voiceMode") private var voiceMode: Bool = false
-
-    // #2 Tiered hints — track which tier of hint the kid has unlocked on
-    // the current problem (0 = none, 1 = static hint, 2 = LLM half-answer).
-    @State private var hintTier: Int = 0
-    @State private var pendingDeeperHint: String? = nil
-
-    // #7 Mini-celebration trigger — bumped on each correct answer.
-    @State private var celebratePulse: Int = 0
-
-    enum Phase { case intro, example, practice, celebrate }
-
+    private var lesson: LessonContent { lessonFor(node: node) }
     private var pal: StarPalette { node.status.palette }
-    private var nProbs: Int { LessonConfig.problemCount }
-    private var qIdx: Int { pastOutcomes.count }
-
-    /// Live lesson context fed to every LLM call — pulled from GalaxyData
-    /// plus the persistent MemoryStore (`memory.md`) so Nova "remembers" the
-    /// kid across sessions.
-    private var ctx: LessonContext {
-        let info = GalaxyData.nodesById[node.id]
-        var constellation: Constellation? = nil
-        if let cid = info?.constellationId {
-            constellation = GalaxyData.constellations.first(where: { $0.id == cid })
-        }
-        let siblings: [String] = constellation
-            .map { c in c.nodes.filter { $0.id != node.id }.map { $0.label } }
-            ?? []
-        return LessonContext(
-            node: node,
-            constellationName: info?.constellationName,
-            course: constellation?.course,
-            blurb: constellation?.blurb,
-            siblingLabels: siblings,
-            memory: MemoryStore.shared.contextForPrompt()
-        )
-    }
-
-    /// Static fallback content used when an LLM call returns nil.
-    private var fallback: LessonContent { lessonFor(node: node) }
+    private var nProbs: Int { lesson.problems.count }
 
     private var progress: Double {
         switch phase {
         case .intro:     return 0.02
         case .example:   return 0.10
         case .practice:  return nProbs > 0 ? 0.12 + Double(qIdx) / Double(nProbs) * 0.85 : 0.12
+        case .chatBreak: return nProbs > 0 ? 0.12 + Double(qIdx) / Double(nProbs) * 0.85 : 0.12
         case .celebrate: return 1.0
         }
     }
@@ -271,160 +235,29 @@ struct LessonView: View {
                 chatHeader
                 progressStrip
                 chatScroll
-                if let inp = bottomInput {
+                if phase == .chatBreak {
+                    chatBreakInputArea
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if let inp = bottomInput {
                     LessonInputArea(
                         inputKind: inp,
                         pal: pal,
-                        hintTier: $hintTier,
+                        hintShown: $hintShown,
                         questionKey: questionKey,
                         onAction: handleAction,
                         onAnswer: handleAnswer,
-                        onHint: handleHintRequest
+                        onHint: { prob in
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                msgs.append(ChatMsg(source: .nova, text: prob.hint, isHint: true))
+                            }
+                        }
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.82), value: bottomInput != nil)
-
-            // #7 — transient star burst on each correct answer.
-            CelebrationBurst(trigger: celebratePulse, palette: pal)
-                .allowsHitTesting(false)
         }
-        .onAppear {
-            if !didKickoffGeneration {
-                didKickoffGeneration = true
-                kickoffOpening()
-            }
-        }
-    }
-
-    // MARK: - Adaptive LLM kickoffs
-
-    /// First call: intro + worked example. n-body shows during the wait.
-    private func kickoffOpening() {
-        startThinking("Putting together a fresh \(node.emoji) \(node.label) lesson…")
-        let context = ctx
-        Task {
-            let result = await LessonGenerator.generateOpening(context)
-            await MainActor.run {
-                if let result = result { self.opening = result }
-                self.stopThinking()
-                self.startIntro()
-            }
-        }
-    }
-
-    /// Generates the next problem, conditioned on the kid's prior performance.
-    private func kickoffNextProblem() {
-        guard pastOutcomes.count < nProbs else {
-            celebrate()
-            return
-        }
-        startThinking("Picking your next \(node.emoji) question…")
-        let context = ctx
-        let history = pastOutcomes
-        let index = pastOutcomes.count
-        let total = nProbs
-        Task {
-            let prob = await LessonGenerator.generateProblem(
-                context, history: history, index: index, total: total
-            )
-            await MainActor.run {
-                self.stopThinking()
-                let resolved = prob ?? self.staticFallbackProblem(at: index)
-                self.currentProblem = resolved
-                self.attempts = 0
-                self.questionKey += 1
-                self.askCurrent()
-            }
-        }
-    }
-
-    /// After a wrong answer, ask Nova for a kind nudge and re-open the input.
-    private func kickoffCoaching(problem: LessonProblem, studentAnswer: String) {
-        startThinking("\(node.emoji) Helping you think it through…")
-        let context = ctx
-        let attemptNum = attempts
-        Task {
-            let coaching = await LessonGenerator.coach(
-                context,
-                problem: problem,
-                studentAnswer: studentAnswer,
-                attempt: attemptNum
-            )
-            await MainActor.run {
-                self.stopThinking()
-                let line = coaching ?? "Hmm, not quite — try once more. \(problem.hint)"
-                self.sendNova([line]) {
-                    // Re-open the SAME problem for another attempt.
-                    self.bottomInput = .text(problem: problem, idx: self.qIdx)
-                }
-            }
-        }
-    }
-
-    /// Final attempt exhausted: walk through the answer, log it, advance.
-    private func kickoffWalkThrough(problem: LessonProblem, studentAnswer: String, hintUsed: Bool) {
-        startThinking("\(node.emoji) Let me walk you through it…")
-        let context = ctx
-        Task {
-            let walk = await LessonGenerator.walkThrough(
-                context, problem: problem, studentAnswer: studentAnswer
-            )
-            await MainActor.run {
-                self.stopThinking()
-                let line = walk ?? "The answer was \(problem.answer). \(problem.hint) Let's try the next one!"
-                self.sendNova([line]) {
-                    self.recordOutcome(
-                        problem: problem,
-                        studentAnswer: studentAnswer,
-                        correct: false,
-                        hintUsed: hintUsed
-                    )
-                    self.streak = 0
-                    self.hearts = max(0, self.hearts - 1)
-                    self.kickoffNextProblem()
-                }
-            }
-        }
-    }
-
-    private func startThinking(_ caption: String) {
-        thinkingCaption = caption
-        bottomInput = nil
-        withAnimation(.easeOut(duration: 0.18)) { isThinking = true }
-    }
-
-    private func stopThinking() {
-        withAnimation(.easeOut(duration: 0.25)) { isThinking = false }
-    }
-
-    private func staticFallbackProblem(at index: Int) -> LessonProblem {
-        let bank = fallback.problems
-        guard !bank.isEmpty else {
-            return .input("What is \(node.label)?", answer: node.label.lowercased(), hint: "Just type the topic name.")
-        }
-        var p = bank[index % bank.count]
-        // Pizza visuals don't fit the chat input — paraphrase to a typed fraction.
-        if p.kind == .pizza {
-            let answer = "\(p.target)/\(p.slices)"
-            let prompt = p.prompt.replacingOccurrences(of: "Tap to color in", with: "Type the fraction for")
-                                  .replacingOccurrences(of: "Tap to show", with: "Type the fraction for")
-            p = LessonProblem.input(prompt, answer: answer, hint: p.hint)
-        }
-        return p
-    }
-
-    /// Lowercase, collapse internal whitespace, strip surrounding/trailing
-    /// punctuation. Lets "7+7" match "7 + 7", "Desert." match "desert", etc.
-    static func normalizeAnswer(_ s: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "+-*/×÷=.,/"))
-        let lowered = s.lowercased()
-        let stripped = lowered.unicodeScalars.filter { allowed.contains($0) || $0 == " " }
-        let collapsed = String(String.UnicodeScalarView(stripped))
-            .split(whereSeparator: { $0 == " " })
-            .joined()
-        return collapsed
+        .onAppear { startIntro() }
     }
 
     // MARK: - Header
@@ -450,7 +283,7 @@ struct LessonView: View {
                 HStack(spacing: 0) {
                     Text("\(node.emoji) \(node.label)")
                         .foregroundColor(.white.opacity(0.5))
-                    if phase == .practice {
+                    if phase == .practice || phase == .chatBreak {
                         Text(" · Q\(qIdx+1)/\(nProbs)")
                             .foregroundColor(Color(hex: 0xFFCC50, opacity: 0.6))
                     }
@@ -461,20 +294,6 @@ struct LessonView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
-                // #3 Voice toggle — taps a speaker icon to read Nova aloud.
-                Button(action: {
-                    voiceMode.toggle()
-                    if !voiceMode { synthesizer.stopSpeaking(at: .immediate) }
-                }) {
-                    Image(systemName: voiceMode ? "speaker.wave.2.fill" : "speaker.slash.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(voiceMode ? Color(hex: 0xFFD044) : .white.opacity(0.55))
-                        .frame(width: 28, height: 28)
-                        .background(Circle().fill(voiceMode ? Color(hex: 0xFFD044, opacity: 0.18) : Color.white.opacity(0.07)))
-                        .overlay(Circle().stroke(voiceMode ? Color(hex: 0xFFD044, opacity: 0.45) : Color.white.opacity(0.12), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-
                 if xpGained > 0 {
                     Text("+\(xpGained) XP")
                         .font(.system(size: 11, weight: .bold, design: .rounded))
@@ -482,8 +301,6 @@ struct LessonView: View {
                         .padding(.horizontal, 8).padding(.vertical, 3)
                         .background(Capsule().fill(Color(hex: 0xFFD044, opacity: 0.15)))
                         .overlay(Capsule().stroke(Color(hex: 0xFFD044, opacity: 0.3), lineWidth: 1))
-                        .scaleEffect(celebratePulse > 0 ? 1.15 : 1.0)
-                        .animation(.spring(response: 0.32, dampingFraction: 0.55), value: celebratePulse)
                 }
                 HStack(spacing: 2) {
                     ForEach(0..<3, id: \.self) { i in
@@ -538,11 +355,6 @@ struct LessonView: View {
                     if isTyping {
                         TypingBubble(pal: pal).id("typing")
                     }
-                    if isThinking {
-                        LessonThinkingBubble(pal: pal, caption: thinkingCaption)
-                            .id("thinking")
-                            .transition(.opacity)
-                    }
                     Color.clear.frame(height: 6).id("__end")
                 }
                 .padding(.horizontal, 14)
@@ -555,9 +367,6 @@ struct LessonView: View {
             }
             .onChange(of: isTyping) {
                 if isTyping { withAnimation { proxy.scrollTo("__end") } }
-            }
-            .onChange(of: isThinking) {
-                if isThinking { withAnimation { proxy.scrollTo("__end") } }
             }
         }
     }
@@ -586,7 +395,6 @@ struct LessonView: View {
     private func sendNova(_ texts: [String], then: (() -> Void)? = nil) {
         bottomInput = nil
         var delay: Double = 0
-        let speaking = voiceMode
         for text in texts {
             let dur = min(0.35 + Double(text.count) * 0.018, 1.1)
             let d0 = delay
@@ -600,7 +408,6 @@ struct LessonView: View {
                     isTyping = false
                     msgs.append(ChatMsg(source: .nova, text: captured))
                 }
-                if speaking { speak(transcript: captured) }
             }
             delay += 0.12
         }
@@ -611,15 +418,48 @@ struct LessonView: View {
             }
         }
     }
+    
+    private func sendNovaAI(userQuery: String, then: (() -> Void)? = nil) {
+        bottomInput = nil
+        withAnimation(.easeOut(duration: 0.18)) { isTyping = true }
+
+        let context = PipelineContext(
+            activeConstellationID: GalaxyData.nodesById[node.id]?.constellationId,
+            activeStarID: node.id,
+            studentName: "Explorer",
+            history: msgs.compactMap { m in
+                guard !m.isHint && !m.isStats else { return nil }
+                return ChatMessage(
+                    role: m.source == .student ? .user : .assistant,
+                    content: m.text
+                )
+            }
+        )
+
+        RAGPipeline.run(
+            userQuery: userQuery,
+            context: context,
+            onDownload: { _ in },
+            onStream: { _ in },
+            onComplete: { result in
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isTyping = false
+                        msgs.append(ChatMsg(source: .nova, text: result.text.isEmpty ? result.text : result.text))
+                    }
+                    then?()
+                }
+            }
+        )
+    }
 
     // MARK: - Lesson flow
 
     private func startIntro() {
-        let introText = opening?.intro ?? fallback.intro
         sendNova([
             "Hey, space explorer! 🚀",
             "Today we're tackling \(node.label).",
-            introText,
+            lesson.intro,
         ]) {
             bottomInput = .action(label: "Let's go! 🚀", kind: .toExample)
         }
@@ -627,12 +467,10 @@ struct LessonView: View {
 
     private func startExample() {
         phase = .example
-        let exQ = opening?.exampleQuestion ?? fallback.exampleQuestion
-        let exA = opening?.exampleAnswer ?? fallback.exampleAnswer
         sendNova([
             "Let me show you one first. 👀",
-            exQ,
-            "The answer: \(exA)",
+            lesson.exampleQuestion,
+            "The answer: \(lesson.exampleAnswer)",
             "Got it? Now let's see what you can do! 💪",
         ]) {
             bottomInput = .action(label: "Try me! 💪", kind: .toPractice)
@@ -641,48 +479,31 @@ struct LessonView: View {
 
     private func startPractice() {
         phase = .practice
-        kickoffNextProblem()
+        askQ(0)
     }
 
-    private func askCurrent() {
-        guard let p = currentProblem else { return }
-        hintTier = 0
-        let i = pastOutcomes.count
-        sendNova(["Q\(i + 1)/\(nProbs) · \(p.prompt)"]) {
-            bottomInput = .text(problem: p, idx: i)
+    private func askQ(_ idx: Int) {
+        qIdx = idx
+        hintShown = false
+        questionKey += 1
+
+        var p = lesson.problems[idx]
+        // Convert pizza → MC, matching lesson.jsx behavior
+        if p.kind == .pizza {
+            let choices = (1...max(1, p.slices)).map { "\($0)/\(p.slices)" }
+            let answer = "\(p.target)/\(p.slices)"
+            let prompt = p.prompt.replacingOccurrences(of: "Tap to color in", with: "How many slices for")
+                                  .replacingOccurrences(of: "Tap to show", with: "How many slices for")
+            p = LessonProblem.mc(prompt, choices: choices, answer: answer, hint: p.hint)
         }
-    }
 
-    /// #2 Tiered hint dispatcher.
-    /// tier == 1: reveal the static hint immediately as a Nova hint bubble.
-    /// tier == 2: ask Gemma for a deeper hint (n-body shows during the call).
-    /// tier == 3: bail out — walk through the answer and advance to next.
-    private func handleHintRequest(_ problem: LessonProblem, tier: Int) {
-        switch tier {
-        case 1:
-            withAnimation(.easeOut(duration: 0.18)) {
-                msgs.append(ChatMsg(source: .nova, text: problem.hint, isHint: true))
+        sendNova(["Q\(idx+1)/\(nProbs) · \(p.prompt)"]) {
+            switch p.kind {
+            case .multipleChoice:
+                bottomInput = .mc(choices: p.choices, problem: p, idx: idx)
+            case .input, .pizza:
+                bottomInput = .text(problem: p, idx: idx)
             }
-        case 2:
-            startThinking("\(node.emoji) Looking for a stronger nudge…")
-            let context = ctx
-            Task {
-                let line = await LessonGenerator.deeperHint(context, problem: problem)
-                await MainActor.run {
-                    self.stopThinking()
-                    let text = line ?? "Try thinking step by step. \(problem.hint)"
-                    withAnimation(.easeOut(duration: 0.18)) {
-                        self.msgs.append(ChatMsg(source: .nova, text: text, isHint: true))
-                    }
-                }
-            }
-        default:
-            // Tier 3: kid is giving up — walk through and move on.
-            kickoffWalkThrough(
-                problem: problem,
-                studentAnswer: "(skipped via Show me how)",
-                hintUsed: true
-            )
         }
     }
 
@@ -695,131 +516,49 @@ struct LessonView: View {
     }
 
     private func handleAnswer(val: String, problem: LessonProblem, idx: Int, usedHint: Bool) {
+        let correct = val.trimmingCharacters(in: .whitespaces).lowercased()
+                      == problem.answer.trimmingCharacters(in: .whitespaces).lowercased()
+
+        // Immediately append colored bubble — before LLM responds
         withAnimation(.easeOut(duration: 0.18)) {
-            msgs.append(ChatMsg(source: .student, text: val))
+            msgs.append(ChatMsg(
+                source: .student,
+                text: val,
+                answerResult: correct ? .correct : .incorrect
+            ))
         }
         bottomInput = nil
 
-        // Fast path: trivial normalized match. Spares an LLM call when it's
-        // an obvious yes (e.g. "8" == "8", "Desert" == "desert").
-        if LessonView.normalizeAnswer(val) == LessonView.normalizeAnswer(problem.answer) {
-            applyCorrect(val: val, problem: problem, usedHint: usedHint)
-            return
+        if correct {
+            streak += 1
+            xpGained += (usedHint ? 8 : 15) + (streak >= 2 ? 5 : 0)
+        } else {
+            streak = 0
+            hearts = max(0, hearts - 1)
         }
-
-        // Slow path: ask Gemma to judge semantically. Handles "eight" vs "8",
-        // "the desert" vs "desert", paraphrases, equivalent fractions, etc.
-        startThinking("\(node.emoji) Checking your answer…")
-        let context = ctx
-        Task {
-            let verdict = await LessonGenerator.judgeAnswer(
-                context, problem: problem, studentAnswer: val
-            )
-            await MainActor.run {
-                self.stopThinking()
-                if verdict == true {
-                    self.applyCorrect(val: val, problem: problem, usedHint: usedHint)
-                } else {
-                    // Treat nil (ambiguous) as incorrect — the kid still gets
-                    // coaching, so it's a soft fail.
-                    self.applyWrong(val: val, problem: problem, usedHint: usedHint)
-                }
-            }
-        }
-    }
-
-    /// Right-answer flow: reward, mini-celebration, advance.
-    private func applyCorrect(val: String, problem: LessonProblem, usedHint: Bool) {
-        let bonus = (usedHint ? 8 : 15) + (streak >= 2 ? 5 : 0)
-        let attemptPenalty = max(0, attempts) * 3
-        streak += 1
-        xpGained += max(4, bonus - attemptPenalty)
         if usedHint { hintsUsed += 1 }
 
-        // #7 mini-celebration: pulse the XP chip and pop a star overlay.
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.55)) {
-            celebratePulse += 1
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            withAnimation(.easeOut(duration: 0.25)) {
-                if self.celebratePulse > 0 { self.celebratePulse -= 1 }
+        let next = idx + 1
+        let done = next >= nProbs
+
+        let feedbackQuery = correct
+            ? "The student answered '\(val)' which is correct for the question: '\(problem.prompt)'. Give a short encouraging response\(streak >= 3 ? " and mention their \(streak)-answer streak" : "")."
+            : "The student answered '\(val)' but the correct answer is '\(problem.answer)' for the question: '\(problem.prompt)'. Gently explain why and offer to answer any questions they have."
+
+        sendNovaAI(userQuery: feedbackQuery) {
+            if done { self.celebrate() } else {
+                self.phase = .chatBreak
+                self.qIdx = next
             }
         }
-
-        let cheer = randomCheer() + (streak >= 3 ? " 🔥 \(streak) in a row!" : "")
-        sendNova([cheer]) {
-            self.recordOutcome(
-                problem: problem,
-                studentAnswer: val,
-                correct: true,
-                hintUsed: usedHint
-            )
-            self.kickoffNextProblem()
-        }
     }
-
-    /// Wrong-answer flow: bump attempts, escalate to coaching or walk-through.
-    private func applyWrong(val: String, problem: LessonProblem, usedHint: Bool) {
-        attempts += 1
-        if attempts < LessonConfig.maxAttemptsPerProblem {
-            kickoffCoaching(problem: problem, studentAnswer: val)
-        } else {
-            kickoffWalkThrough(
-                problem: problem,
-                studentAnswer: val,
-                hintUsed: usedHint || hintTier > 0
-            )
-        }
-    }
-
-    private func recordOutcome(
-        problem: LessonProblem,
-        studentAnswer: String,
-        correct: Bool,
-        hintUsed: Bool
-    ) {
-        let outcome = PastProblemOutcome(
-            prompt: problem.prompt,
-            correctAnswer: problem.answer,
-            studentAnswer: studentAnswer,
-            correct: correct,
-            attempts: max(1, attempts + (correct ? 1 : 0)),
-            hintUsed: hintUsed
-        )
-        pastOutcomes.append(outcome)
-        currentProblem = nil
-        attempts = 0
-    }
-
+    
     private func celebrate() {
         phase = .celebrate
         let capXP = xpGained; let capH = hearts; let capHints = hintsUsed
-        let answered = pastOutcomes.count
-        let correctCount = pastOutcomes.filter { $0.correct }.count
-
-        // #8 — unlock a piece of the constellation's skyStory as a reward,
-        // scaled to performance (full lore on a clean run, a teaser otherwise).
-        let info = GalaxyData.nodesById[node.id]
-        var constellation: Constellation? = nil
-        if let cid = info?.constellationId {
-            constellation = GalaxyData.constellations.first(where: { $0.id == cid })
-        }
-        let skyStory: String? = constellation?.skyStory
-        let unlockedLore: String? = skyStory.map { story in
-            if correctCount == answered && answered > 0 {
-                // Perfect run: the whole lore.
-                return story
-            }
-            // Partial run: unlock the first sentence as a teaser.
-            if let firstStop = story.firstIndex(where: { ".!?".contains($0) }) {
-                return String(story[...firstStop])
-            }
-            return story
-        }
-
         sendNova([
             "🎉 Lesson complete, superstar!",
-            "You worked through \(answered) question\(answered == 1 ? "" : "s"). Here's how you did:",
+            "You answered all \(nProbs) questions. Here's how you did:",
         ]) {
             var sm = ChatMsg(source: .nova, text: "")
             sm.isStats = true
@@ -827,35 +566,97 @@ struct LessonView: View {
             sm.statsHearts = capH
             sm.statsHints = capHints
             withAnimation(.easeOut(duration: 0.2)) { self.msgs.append(sm) }
-
-            // Reveal the lore unlock (if any) shortly after stats.
-            if let lore = unlockedLore, let cName = constellation?.name, let cEmoji = constellation?.emoji {
-                let label = correctCount == answered
-                    ? "✨ Bonus lore unlocked — \(cEmoji) \(cName):"
-                    : "✨ A peek at the \(cEmoji) \(cName) story:"
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    self.sendNova([label, lore])
-                }
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + (unlockedLore == nil ? 0.4 : 1.6)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 withAnimation { self.bottomInput = .action(label: "Back to galaxy 🌌", kind: .toDone) }
             }
         }
+    }
+    
+    private var chatBreakInputArea: some View {
+        VStack(spacing: 0) {
+            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
 
-        // Persist this lesson into memory.md (and trigger compression every Nth).
-        let snapshotOutcomes = pastOutcomes
-        let cName = info?.constellationName
-        Task {
-            await MemoryStore.shared.recordLesson(
-                node: node,
-                constellationName: cName,
-                outcomes: snapshotOutcomes,
-                xpGained: capXP,
-                heartsLeft: capH,
-                hintsUsed: capHints
-            )
+            VStack(spacing: 8) {
+                // Row 1: text field + send button
+                HStack(spacing: 8) {
+                    TextField("", text: $chatBreakInput,
+                              prompt: Text("Ask Nova more about this…")
+                                  .foregroundColor(.white.opacity(0.4)))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.14), lineWidth: 1.5)
+                        )
+                        .focused($chatBreakFocused)
+                        .onSubmit { sendChatBreakMessage() }
+
+                    Button(action: sendChatBreakMessage) {
+                        Text("→")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                             ? .white.opacity(0.25) : Color(hex: 0x1A0B40))
+                            .frame(width: 48, height: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                          ? AnyShapeStyle(Color.white.opacity(0.07))
+                                          : AnyShapeStyle(LinearGradient(
+                                                colors: [pal.mid, pal.halo],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing)))
+                            )
+                            .shadow(color: chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                    ? .clear : pal.glow.opacity(0.6), radius: 10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+
+                // Row 2: next question button — same total width as row above
+                Button(action: resumeAfterChatBreak) {
+                    Text(qIdx >= nProbs ? "🎉 Finish lesson!" : "Next question →")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(hex: 0x1A0B40))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(
+                            LinearGradient(
+                                colors: [pal.mid, pal.halo],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: pal.glow.opacity(0.5), radius: 10, x: 0, y: 4)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(EdgeInsets(top: 12, leading: 14, bottom: 28, trailing: 14))
         }
+        .background(Color(hex: 0x09041E))
+    }
+
+    private func sendChatBreakMessage() {
+        let q = chatBreakInput.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return }
+        chatBreakInput = ""
+        chatBreakFocused = false
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            msgs.append(ChatMsg(source: .student, text: q))
+        }
+
+        sendNovaAI(userQuery: q)
+    }
+
+    private func resumeAfterChatBreak() {
+        phase = .practice
+        let done = qIdx >= nProbs
+        if done { celebrate() } else { askQ(qIdx) }
     }
 }
 
@@ -930,19 +731,35 @@ private struct MsgBubble: View {
     private var studentBubble: some View {
         HStack {
             Spacer(minLength: 44)
-            Text(msg.text)
-                .font(.system(size: 14.5, weight: .semibold, design: .rounded))
-                .foregroundColor(Color(hex: 0x1A0B40))
-                .lineSpacing(2)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ))
-                )
-                .shadow(color: Color(hex: 0xFF8A4C, opacity: 0.3), radius: 8, x: 0, y: 2)
+            HStack(spacing: 6) {
+                Text(msg.text)
+                    .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineSpacing(2)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        msg.answerResult == .correct
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0x34C759), Color(hex: 0x30B354)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                            : msg.answerResult == .incorrect
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                            : AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                    )
+            )
+            .shadow(color: msg.answerResult == .correct
+                        ? Color(hex: 0x34C759, opacity: 0.4)
+                        : msg.answerResult == .incorrect
+                        ? Color(hex: 0xFF3B30, opacity: 0.4)
+                        : Color(hex: 0xFF8A4C, opacity: 0.3),
+                    radius: 8, x: 0, y: 2)
         }
     }
 
@@ -1023,42 +840,16 @@ private struct BouncingDots: View {
     }
 }
 
-// MARK: - Lesson thinking bubble (gravity n-body while Gemma generates)
-
-private struct LessonThinkingBubble: View {
-    let pal: StarPalette
-    let caption: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            NovaAvatarView(size: 26, pal: pal)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(caption)
-                    .font(.system(size: 13.5, weight: .medium, design: .rounded))
-                    .foregroundColor(Color(hex: 0xE8D8FF))
-                    .lineSpacing(2)
-                StarOrbitLoadingView(
-                    title: "Thinking…",
-                    subtitle: "Nova is exploring ideas",
-                    height: 180
-                )
-                .frame(maxWidth: .infinity)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-}
-
 // MARK: - Bottom input area
 
 private struct LessonInputArea: View {
     let inputKind: BottomInputKind
     let pal: StarPalette
-    @Binding var hintTier: Int
+    @Binding var hintShown: Bool
     let questionKey: Int
     let onAction: (LessonAction) -> Void
     let onAnswer: (String, LessonProblem, Int, Bool) -> Void
-    let onHint: (LessonProblem, Int) -> Void  // (problem, requested tier)
+    let onHint: (LessonProblem) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1068,10 +859,10 @@ private struct LessonInputArea: View {
                 case .action(let label, let kind):
                     actionView(label: label, kind: kind)
                 case .mc(let choices, let problem, let idx):
-                    MCChoicesView(choices: choices, problem: problem, idx: idx, pal: pal, hintTier: $hintTier, onAnswer: onAnswer, onHint: onHint)
+                    MCChoicesView(choices: choices, problem: problem, idx: idx, pal: pal, hintShown: $hintShown, onAnswer: onAnswer, onHint: onHint)
                         .id(questionKey)
                 case .text(let problem, let idx):
-                    TextInputView(problem: problem, idx: idx, pal: pal, hintTier: $hintTier, onAnswer: onAnswer, onHint: onHint)
+                    TextInputView(problem: problem, idx: idx, pal: pal, hintShown: $hintShown, onAnswer: onAnswer, onHint: onHint)
                         .id(questionKey)
                 }
             }
@@ -1104,9 +895,9 @@ private struct MCChoicesView: View {
     let problem: LessonProblem
     let idx: Int
     let pal: StarPalette
-    @Binding var hintTier: Int
+    @Binding var hintShown: Bool
     let onAnswer: (String, LessonProblem, Int, Bool) -> Void
-    let onHint: (LessonProblem, Int) -> Void  // (problem, requested tier)
+    let onHint: (LessonProblem) -> Void
 
     @State private var tapped: String? = nil
 
@@ -1118,7 +909,7 @@ private struct MCChoicesView: View {
                     guard tapped == nil else { return }
                     tapped = ch
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
-                        onAnswer(ch, problem, idx, hintTier > 0)
+                        onAnswer(ch, problem, idx, hintShown)
                     }
                 }) {
                     HStack(spacing: 10) {
@@ -1149,7 +940,7 @@ private struct MCChoicesView: View {
                 .buttonStyle(.plain)
                 .disabled(tapped != nil)
             }
-            HintButton(problem: problem, hintTier: $hintTier, onHint: onHint)
+            HintButton(problem: problem, hintShown: $hintShown, onHint: onHint)
         }
     }
 }
@@ -1160,12 +951,11 @@ private struct TextInputView: View {
     let problem: LessonProblem
     let idx: Int
     let pal: StarPalette
-    @Binding var hintTier: Int
+    @Binding var hintShown: Bool
     let onAnswer: (String, LessonProblem, Int, Bool) -> Void
-    let onHint: (LessonProblem, Int) -> Void  // (problem, requested tier)
+    let onHint: (LessonProblem) -> Void
 
     @State private var textVal = ""
-    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 8) {
@@ -1184,7 +974,6 @@ private struct TextInputView: View {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(Color.white.opacity(0.14), lineWidth: 1.5)
                     )
-                    .focused($isFocused)
                     .onSubmit { submit() }
 
                 Button(action: submit) {
@@ -1203,88 +992,35 @@ private struct TextInputView: View {
                 .buttonStyle(.plain)
                 .disabled(textVal.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            HintButton(problem: problem, hintTier: $hintTier, onHint: onHint)
+            HintButton(problem: problem, hintShown: $hintShown, onHint: onHint)
         }
     }
 
     private func submit() {
         let v = textVal.trimmingCharacters(in: .whitespaces)
         guard !v.isEmpty else { return }
-        isFocused = false
-        onAnswer(v, problem, idx, hintTier > 0)
-    }
-}
-
-// MARK: - Celebration burst (#7)
-
-/// Brief star shimmer that animates whenever `trigger` increments. Sits as
-/// a translucent overlay above the chat — non-blocking, ~600ms.
-private struct CelebrationBurst: View {
-    let trigger: Int
-    let palette: StarPalette
-    @State private var phase: CGFloat = 0
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<6, id: \.self) { i in
-                let angle = CGFloat(i) * .pi / 3
-                let r = 60 + phase * 90
-                Text("⭐")
-                    .font(.system(size: 22))
-                    .foregroundColor(palette.mid)
-                    .opacity(Double(1.0 - phase))
-                    .scaleEffect(0.6 + phase * 0.7)
-                    .offset(x: cos(angle) * r, y: sin(angle) * r)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .onChange(of: trigger) { _, newValue in
-            guard newValue > 0 else { return }
-            phase = 0
-            withAnimation(.easeOut(duration: 0.55)) { phase = 1 }
-        }
+        onAnswer(v, problem, idx, hintShown)
     }
 }
 
 // MARK: - Hint button
 
-/// Tiered hint button. Each tap escalates: 1) static hint, 2) LLM deeper
-/// hint, 3) walk-through (effectively gives up and advances).
 private struct HintButton: View {
     let problem: LessonProblem
-    @Binding var hintTier: Int
-    let onHint: (LessonProblem, Int) -> Void  // (problem, requested tier)
+    @Binding var hintShown: Bool
+    let onHint: (LessonProblem) -> Void
 
     var body: some View {
-        // Hide entirely once tier 3 (walk-through) has been requested.
-        if hintTier >= 3 || problem.hint.isEmpty {
-            EmptyView()
-        } else {
-            let labelText: String = {
-                switch hintTier {
-                case 0: return "💡 Show hint"
-                case 1: return "🔎 Deeper hint"
-                default: return "🤝 Show me how"
-                }
-            }()
-            let costText: String = {
-                switch hintTier {
-                case 0: return "(−5 XP)"
-                case 1: return "(−10 XP)"
-                default: return "(skips this Q)"
-                }
-            }()
-
+        if !hintShown && !problem.hint.isEmpty {
             Button(action: {
-                let next = hintTier + 1
-                hintTier = next
-                onHint(problem, next)
+                hintShown = true
+                onHint(problem)
             }) {
                 HStack(spacing: 6) {
-                    Text(labelText)
+                    Text("💡 Show hint")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundColor(Color(hex: 0x5EE7FF))
-                    Text(costText)
+                    Text("(−7 XP)")
                         .font(.system(size: 11, weight: .regular, design: .rounded))
                         .foregroundColor(Color(hex: 0x5EE7FF, opacity: 0.55))
                 }

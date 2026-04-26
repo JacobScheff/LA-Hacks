@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AVFoundation
 
 // MARK: - Shared
 
@@ -281,7 +282,7 @@ struct PathsTab: View {
         let title: String
         let kicker: String
         let desc: String
-        let stars: [String]
+        let stars:[String]
         let progress: Double
         let minutes: Int
         let hue: Color
@@ -396,7 +397,7 @@ struct PathsTab: View {
                         .padding(.vertical, 10)
                         .background(
                             LinearGradient(
-                                colors: [p.hue, p.hue.opacity(0.7)],
+                                colors:[p.hue, p.hue.opacity(0.7)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -477,14 +478,14 @@ struct NovaAITab: View {
     @State private var isProcessing: Bool = false
     @State private var downloadProgress: Float = 0.0
     @FocusState private var isPromptFocused: Bool
-
+    
     // MARK: Thought Channel Parsing Logic
     
     private var parsedOutput: String {
         var text = rawOutput
         
         // Strip out complete thought blocks
-        while let startRange = text.range(of: "<|channel>thought") {
+        while let startRange = text.range(of: "<|channel>") {
             if let endRange = text.range(of: "<channel|>", range: startRange.upperBound..<text.endIndex) {
                 text.removeSubrange(startRange.lowerBound..<endRange.upperBound)
             } else {
@@ -495,7 +496,7 @@ struct NovaAITab: View {
         }
         
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let thoughtToken = "<|channel>thought"
+        let thoughtToken = "<|channel>"
         
         // Hide partial streams at the very beginning
         if thoughtToken.hasPrefix(trimmed) {
@@ -504,14 +505,14 @@ struct NovaAITab: View {
         
         return trimmed
     }
-
+    
     private var currentlyThinking: Bool {
         if !isProcessing { return false }
         
         var text = rawOutput
         
         // Check for an unclosed thought block
-        while let startRange = text.range(of: "<|channel>thought") {
+        while let startRange = text.range(of: "<|channel>") {
             if let endRange = text.range(of: "<channel|>", range: startRange.upperBound..<text.endIndex) {
                 text.removeSubrange(startRange.lowerBound..<endRange.upperBound)
             } else {
@@ -520,7 +521,7 @@ struct NovaAITab: View {
         }
         
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let thoughtToken = "<|channel>thought"
+        let thoughtToken = "<|channel>"
         
         // Catch initial streaming of the token
         if trimmed.isEmpty || thoughtToken.hasPrefix(trimmed) {
@@ -534,7 +535,7 @@ struct NovaAITab: View {
         
         return false
     }
-
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -544,17 +545,17 @@ struct NovaAITab: View {
                     emoji: "🦊",
                     subtitle: "Chat with your AI tutor!"
                 )
-
+                
                 promptCard
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
-
+                
                 if isProcessing && downloadProgress > 0 && downloadProgress < 1.0 {
                     downloadCard
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
                 }
-
+                
                 if !rawOutput.isEmpty || isProcessing {
                     responseCard
                         .padding(.horizontal, 16)
@@ -569,13 +570,13 @@ struct NovaAITab: View {
         .scrollIndicators(.hidden)
         .foregroundColor(.white)
     }
-
+    
     private var promptCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("💬 YOUR QUESTION")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundColor(.white.opacity(0.65))
-
+            
             TextEditor(text: $prompt)
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundColor(.white)
@@ -600,7 +601,7 @@ struct NovaAITab: View {
                     }
                 }
                 .focused($isPromptFocused)
-
+            
             Button(action: runLLM) {
                 HStack(spacing: 8) {
                     if isProcessing {
@@ -619,8 +620,8 @@ struct NovaAITab: View {
                 .background(
                     LinearGradient(
                         colors: isProcessing
-                            ?[Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
-                            :[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                        ?[Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
+                        :[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                 )
@@ -632,7 +633,7 @@ struct NovaAITab: View {
         }
         .sCard(padding: EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
     }
-
+    
     private var downloadCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -664,7 +665,7 @@ struct NovaAITab: View {
         }
         .sCard(stroke: Color(hex: 0xFFE066, opacity: 0.3), padding: EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
     }
-
+    
     private var responseCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
@@ -698,16 +699,19 @@ struct NovaAITab: View {
             padding: EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)
         )
     }
-
+    
     private func runLLM() {
         guard !isProcessing else { return }
-        isPromptFocused = false
         let userPrompt = prompt
         isProcessing = true
         rawOutput = ""
         downloadProgress = 0.0
 
-        let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
+        var spokenLength = 0
+        synthesizer.stopSpeaking(at: .immediate)
+
+        // No active constellation/star — Nova acts as a general tutor
+        // RAG will still retrieve relevant chunks if the query matches curriculum
 
         let context = PipelineContext(
             activeConstellationID: nil,
@@ -715,7 +719,7 @@ struct NovaAITab: View {
             studentName: "Explorer",
             history: []
         )
-
+        
         RAGPipeline.run(
             userQuery: userPrompt,
             context: context,
@@ -723,13 +727,43 @@ struct NovaAITab: View {
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
             onStream: { currentText in
-                DispatchQueue.main.async { self.rawOutput = currentText }
+                DispatchQueue.main.async {
+                    self.rawOutput = currentText
+                    let parsed = self.parsedOutput
+                    if parsed.count > spokenLength {
+                        let newText = String(parsed.dropFirst(spokenLength))
+                        let delimiters = CharacterSet(charactersIn: ".?!\n,:;")
+                        if let range = newText.rangeOfCharacter(from: delimiters, options: .backwards) {
+                            let splitIndex = range.upperBound
+                            let textToSpeak = String(newText[..<splitIndex])
+                            let trimmedText = textToSpeak.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmedText.isEmpty {
+                                speak(transcript: trimmedText)
+                            }
+                            spokenLength += textToSpeak.count
+                        }
+                    }
+                }
             },
             onComplete: { result in
                 DispatchQueue.main.async {
                     self.isProcessing = false
-                    if let error = result.error {
-                        self.outputText = "Oops! Nova had a problem: \(error.localizedDescription)"
+                    switch result.status {
+                    case .filteredByGuard:
+                        self.rawOutput = result.text
+                    case .modelError:
+                        self.rawOutput = "Oops! Nova had a problem: \(result.error?.localizedDescription ?? "unknown error")"
+                    case .success:
+                      let parsed = self.parsedOutput
+                       if parsed.count > spokenLength {
+                         let newText = String(parsed.dropFirst(spokenLength))
+                         let trimmedText = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                         if !trimmedText.isEmpty {
+                             speak(transcript: trimmedText)
+                          }
+                          spokenLength = parsed.count
+                        }
+                        break
                     }
                 }
             }
@@ -739,7 +773,7 @@ struct NovaAITab: View {
 
 // MARK: - Gravity N-Body Simulation Loading View
 
-final class NBodyEngine: ObservableObject {
+class NBodyEngine: ObservableObject {
     struct GravityStar {
         var position: CGPoint
         var velocity: CGVector
@@ -842,10 +876,7 @@ final class NBodyEngine: ObservableObject {
     }
 }
 
-struct StarOrbitLoadingView: View {
-    var title: String = "Thinking..."
-    var subtitle: String = "Nova is exploring ideas"
-    var height: CGFloat = 240
+private struct StarOrbitLoadingView: View {
     @StateObject private var engine = NBodyEngine()
     
     var body: some View {
@@ -888,14 +919,14 @@ struct StarOrbitLoadingView: View {
                     )
                 }
             }
-            .frame(height: height) // Lots of vertical room for the stars to sling around!
+            .frame(height: 240) // Lots of vertical room for the stars to sling around!
             .frame(maxWidth: .infinity)
-
+            
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
+                Text("Thinking...")
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0x5EE7FF))
-                Text(subtitle)
+                Text("Nova is exploring ideas")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.6))
             }
@@ -925,7 +956,6 @@ struct StarOrbitLoadingView: View {
 
 struct YouTab: View {
     @State private var showSettings = false
-    @State private var showStickerBook = false
     @Environment(UserSettings.self) var userSettings
 
     /// Deterministic 12 weeks × 7 days heatmap
@@ -939,7 +969,26 @@ struct YouTab: View {
         return out
     }()
 
-    private var stickers: [StarStickerItem] { Array(StarStickerData.all.prefix(12)) }
+    private struct Sticker: Identifiable {
+        let id = UUID()
+        let emoji: String
+        let label: String
+        let unlocked: Bool
+    }
+    private let stickers:[Sticker] = [
+        Sticker(emoji: "🍕", label: "Pizza Pro",    unlocked: true),
+        Sticker(emoji: "🚀", label: "Rocket Kid",   unlocked: true),
+        Sticker(emoji: "🎯", label: "Sharp Shooter",unlocked: true),
+        Sticker(emoji: "🔥", label: "7-Day Streak", unlocked: true),
+        Sticker(emoji: "🦋", label: "Symmetry Star",unlocked: true),
+        Sticker(emoji: "🦊", label: "Quick Fox",    unlocked: true),
+        Sticker(emoji: "🪐", label: "Space Cadet",  unlocked: false),
+        Sticker(emoji: "🧙", label: "Word Wizard",  unlocked: false),
+        Sticker(emoji: "🧊", label: "Cool Cube",    unlocked: false),
+        Sticker(emoji: "🦖", label: "History Hero", unlocked: false),
+        Sticker(emoji: "🏆", label: "Champion",     unlocked: false),
+        Sticker(emoji: "⭐", label: "All Stars",    unlocked: false),
+    ]
 
     private struct Metric: Identifiable {
         let id = UUID()
@@ -951,13 +1000,12 @@ struct YouTab: View {
         let sub: String?
         let hue: Color
     }
-    private var earnedCount: Int { StarStickerData.unlockedCount }
-    private var totalStickerCount: Int { StarStickerData.all.count }
+    private var earnedCount: Int { stickers.filter { $0.unlocked }.count }
     private var metrics: [Metric] {[
             Metric(emoji: "⭐", label: "Stars Lit",  value: "23",      total: 47, valueAsInt: 23, sub: nil,         hue: Color(hex: 0xFFE066)),
             Metric(emoji: "🌌", label: "Worlds",     value: "2",       total: 9,  valueAsInt: 2,  sub: nil,         hue: Color(hex: 0xA78BFA)),
             Metric(emoji: "🔥", label: "Streak",     value: "12d",     total: nil,valueAsInt: nil,sub: "best 18d",  hue: Color(hex: 0xFF8A4C)),
-            Metric(emoji: "🏆", label: "Stickers",   value: "\(earnedCount)/\(totalStickerCount)", total: nil, valueAsInt: nil, sub: nil, hue: Color(hex: 0xFF8AD8)),
+            Metric(emoji: "🏆", label: "Stickers",   value: "\(earnedCount)/\(stickers.count)", total: nil, valueAsInt: nil, sub: nil, hue: Color(hex: 0xFF8AD8)),
         ]
     }
 
@@ -976,48 +1024,42 @@ struct YouTab: View {
     ]
 
     var body: some View {
-        ZStack {
-            if showSettings {
-                SettingsTab(onBack: { showSettings = false })
-            } else {
-                profileContent
-            }
-
-            if showStickerBook {
-                StickerBookView(onBack: { showStickerBook = false })
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
+        if showSettings {
+            SettingsTab(onBack: { showSettings = false })
+        } else {
+            profileContent
         }
-        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: showStickerBook)
     }
 
     private var profileContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Spacer()
-                    Button(action: { showSettings = true }) {
-                        Text("⚙️")
-                            .font(.system(size: 17))
-                            .frame(width: 36, height: 36)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 16)
+        ZStack(alignment: .topTrailing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    hero
+                    metricsGrid
+                    stickerBook
+                    heatmapCard
+                    recentBlock
                 }
-                hero
-                metricsGrid
-                stickerBook
-                heatmapCard
-                recentBlock
+                .padding(.top, 60)
+                .padding(.bottom, 30)
             }
+            .scrollIndicators(.hidden)
+            .foregroundColor(.white)
+
+            // Gear button (top-right, floats above scroll)
+            Button(action: { showSettings = true }) {
+                Text("⚙️")
+                    .font(.system(size: 17))
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1.5))
+            }
+            .buttonStyle(.plain)
             .padding(.top, 62)
-            .padding(.bottom, 30)
+            .padding(.trailing, 16)
         }
-        .scrollIndicators(.hidden)
-        .foregroundColor(.white)
     }
 
     private var hero: some View {
@@ -1116,24 +1158,13 @@ struct YouTab: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()
-                Text("\(earnedCount)/\(totalStickerCount)")
+                Text("\(earnedCount)/\(stickers.count)")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0xFFE066))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color(hex: 0xFFE066, opacity: 0.14)))
                     .overlay(Capsule().stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 1))
-
-                Button(action: { showStickerBook = true }) {
-                    Text("See all →")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: 0xA78BFA))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color(hex: 0xA78BFA, opacity: 0.12)))
-                        .overlay(Capsule().stroke(Color(hex: 0xA78BFA, opacity: 0.4), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
             }
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -1146,12 +1177,24 @@ struct YouTab: View {
         .padding(.bottom, 18)
     }
 
-    private func stickerCell(_ s: StarStickerItem) -> some View {
-        let c1 = s.shimmer
-        let c2 = s.rarity.color
+    private func stickerColors(_ s: Sticker) -> (Color, Color) {
+        switch s.emoji {
+        case "🍕": return (Color(hex: 0xFF8A4C), Color(hex: 0xFFE066))
+        case "🚀": return (Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA))
+        case "🎯": return (Color(hex: 0xFF4FB6), Color(hex: 0xA855F7))
+        case "🔥": return (Color(hex: 0xFF8A4C), Color(hex: 0xFF4FB6))
+        case "🦋": return (Color(hex: 0xFF8AD8), Color(hex: 0x5EE7FF))
+        case "🦊": return (Color(hex: 0xFFE066), Color(hex: 0xFF8A4C))
+        default:   return (Color(hex: 0xA78BFA), Color(hex: 0x5EE7FF))
+        }
+    }
+
+    private func stickerCell(_ s: Sticker) -> some View {
+        let (c1, c2) = stickerColors(s)
         return VStack(spacing: 7) {
             ZStack {
                 if s.unlocked {
+                    // Glow bloom
                     Text(s.emoji)
                         .font(.system(size: 34))
                         .blur(radius: 10)
@@ -1185,7 +1228,7 @@ struct YouTab: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(s.unlocked
                       ? AnyShapeStyle(LinearGradient(
-                            colors: [c1.opacity(0.22), c2.opacity(0.14)],
+                            colors:[c1.opacity(0.22), c2.opacity(0.14)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                       : AnyShapeStyle(Color.white.opacity(0.04)))
         )
@@ -1194,14 +1237,13 @@ struct YouTab: View {
                 .strokeBorder(
                     s.unlocked
                         ? AnyShapeStyle(LinearGradient(
-                            colors: [c1.opacity(0.80), c2.opacity(0.50)],
+                            colors:[c1.opacity(0.80), c2.opacity(0.50)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                         : AnyShapeStyle(Color.white.opacity(0.10)),
-                    style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ? [] : [4, 3])
+                    style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ?[] : [4, 3])
                 )
         )
         .shadow(color: s.unlocked ? c1.opacity(0.38) : .clear, radius: 12, x: 0, y: 4)
-        .onTapGesture { showStickerBook = true }
     }
 
     private var heatmapCard: some View {
@@ -1333,23 +1375,20 @@ struct SettingsTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                Button(action: onBack) {
-                    HStack(spacing: 6) {
-                        Text("←")
-                        Text("Me")
+                // Back + header
+                HStack {
+                    Button(action: onBack) {
+                        HStack(spacing: 6) {
+                            Text("←")
+                            Text("Me")
+                        }
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(hex: 0xC8AAF0, opacity: 0.75))
                     }
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(
-                        Capsule().fill(Color.white.opacity(0.10))
-                    )
-                    .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1.5))
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
 
                 TabHeader(kicker: "⚙️ PREFERENCES", title: "Settings", emoji: "", subtitle: "Make Star Hop yours!")
 
@@ -1385,7 +1424,7 @@ struct SettingsTab: View {
                                     .background(
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .fill(userSettings.avatar == a
-                                                  ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x5EE7FF, opacity: 0.3), Color(hex: 0xA78BFA, opacity: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                  ? AnyShapeStyle(LinearGradient(colors:[Color(hex: 0x5EE7FF, opacity: 0.3), Color(hex: 0xA78BFA, opacity: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                                   : AnyShapeStyle(Color.white.opacity(0.06)))
                                     )
                                     .overlay(
@@ -1428,7 +1467,7 @@ struct SettingsTab: View {
                                 .foregroundColor(Color(hex: 0x1A0B40))
                                 .padding(.horizontal, 14).padding(.vertical, 10)
                                 .background(
-                                    LinearGradient(colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing)
+                                    LinearGradient(colors:[Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
@@ -1441,6 +1480,9 @@ struct SettingsTab: View {
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white)
                             Spacer()
+                            Text("Edit ✏️")
+                                .font(.system(size: 12, design: .rounded))
+                                .foregroundColor(.white.opacity(0.4))
                         }
                         .padding(.horizontal, 12).padding(.vertical, 10)
                         .background(
@@ -1469,7 +1511,7 @@ struct SettingsTab: View {
                                 .padding(.horizontal, 14).padding(.vertical, 8)
                                 .background(
                                     Capsule().fill(userSettings.grade == g
-                                                   ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8AD8)], startPoint: .leading, endPoint: .trailing))
+                                                   ? AnyShapeStyle(LinearGradient(colors:[Color(hex: 0xFFE066), Color(hex: 0xFF8AD8)], startPoint: .leading, endPoint: .trailing))
                                                    : AnyShapeStyle(Color.white.opacity(0.07)))
                                 )
                                 .shadow(color: userSettings.grade == g ? Color(hex: 0xFFE066, opacity: 0.35) : .clear, radius: 8)
@@ -1516,7 +1558,7 @@ struct SettingsTab: View {
                                         .padding(.horizontal, 14).padding(.vertical, 8)
                                         .background(
                                             Capsule().fill(notifTime == t
-                                                           ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF8AD8), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing))
+                                                           ? AnyShapeStyle(LinearGradient(colors:[Color(hex: 0xFF8AD8), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing))
                                                            : AnyShapeStyle(Color.white.opacity(0.07)))
                                         )
                                         .animation(.easeOut(duration: 0.15), value: notifTime == t)
