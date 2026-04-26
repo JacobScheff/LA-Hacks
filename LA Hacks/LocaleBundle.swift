@@ -20,6 +20,15 @@ private final class LanguageBundle: Bundle, @unchecked Sendable {
         NSLog("[i18n] localizedString called  key=\(key)  table=\(tableName ?? "nil")  currentCode=\(LanguageBundle.currentCode)")
         guard LanguageBundle.currentCode != "en" else { return value ?? key }
         let result = Translations.lookup(key: key, language: LanguageBundle.currentCode) ?? value ?? key
+        // #region agent log
+        let hit = (Translations.lookup(key: key, language: LanguageBundle.currentCode) != nil)
+        if key.count > 2 && key.count < 60 {
+            let line = "{\"sessionId\":\"2da7cf\",\"hypothesisId\":\"B\",\"location\":\"LocaleBundle.swift:localizedString\",\"message\":\"Translation lookup\",\"data\":{\"key\":\"\(key.prefix(40).replacingOccurrences(of: "\"", with: "'"))\",\"currentCode\":\"\(LanguageBundle.currentCode)\",\"hit\":\"\(hit)\",\"result\":\"\(result.prefix(40).replacingOccurrences(of: "\"", with: "'"))\"},\"timestamp\":\(Int(Date().timeIntervalSince1970*1000))}\n"
+            let p = "/Users/genami133/Projects/LA-Hacks/.cursor/debug-2da7cf.log"
+            if let fh = FileHandle(forWritingAtPath: p) { fh.seekToEndOfFile(); fh.write(line.data(using: .utf8)!); fh.closeFile() }
+            else { try? line.data(using: .utf8)?.write(to: URL(fileURLWithPath: p)) }
+        }
+        // #endregion
         NSLog("[i18n]   -> returning: \(result)")
         return result
     }
