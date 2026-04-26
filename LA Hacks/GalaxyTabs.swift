@@ -705,8 +705,6 @@ struct NovaAITab: View {
         isProcessing = true
         rawOutput = ""
         downloadProgress = 0.0
-        
-        let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
 
         let context = PipelineContext(
             activeConstellationID: nil,
@@ -721,14 +719,19 @@ struct NovaAITab: View {
             onDownload: { progress in
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
-            onStream: { currentText in
-                DispatchQueue.main.async { self.rawOutput = currentText }
+            onStream: { token in
+                DispatchQueue.main.async { self.rawOutput += token }
             },
             onComplete: { result in
                 DispatchQueue.main.async {
                     self.isProcessing = false
-                    if let error = result.error {
-                        self.outputText = "Oops! Nova had a problem: \(error.localizedDescription)"
+                    switch result.status {
+                    case .filteredByGuard:
+                        self.rawOutput = result.text
+                    case .modelError:
+                        self.rawOutput = "Oops! Nova had a problem: \(result.error?.localizedDescription ?? "unknown error")"
+                    case .success:
+                        break 
                     }
                 }
             }
