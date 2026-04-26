@@ -11,31 +11,128 @@ import ZeticMLange
 import AVFoundation
 
 // MARK: - Global Shared Model
-// Model is declared only once to avoid 5-10s memory initialization between every message
 var sharedModel: ZeticMLangeLLMModel?
 
-// MARK: - Speech Synthesizer
-var synthesizer = AVSpeechSynthesizer()
+// MARK: - Local Speech Manager
+@MainActor
+class SpeechManager {
+    static let shared = SpeechManager()
+    let synthesizer: AVSpeechSynthesizer
+    var elevenLabsPlayer: AVAudioPlayer?
+    private var cachedVoice: AVSpeechSynthesisVoice?
+    
+    private init() {
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("SpeechManager AVAudioSession init error: \(error.localizedDescription)")
+        }
+        synthesizer = AVSpeechSynthesizer()
+        
+        // Cache the voice to prevent expensive OS lookups during high-speed streaming
+        cachedVoice = AVSpeechSynthesisVoice(language: "en-GB")
+    }
+    
+    func speak(_ transcript: String) {
+        // Strip out XML/HTML characters to explicitly prevent iOS from attempting to parse
+        // this as SSML, which causes the "No root nodes found" crash.
+        let sanitized = transcript
+            .replacingOccurrences(of: "<", with: "")
+            .replacingOccurrences(of: ">", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            
+        guard !sanitized.isEmpty else { return }
+            
+        let utterance = AVSpeechUtterance(string: sanitized)
+        utterance.rate = 0.57
+        utterance.pitchMultiplier = 0.8
+        utterance.postUtteranceDelay = 0.2
+        utterance.volume = 0.8
+
+        if let voice = cachedVoice {
+            utterance.voice = voice
+        }
+
+        synthesizer.speak(utterance)
+    }
+    
+    func stop() {
+        synthesizer.stopSpeaking(at: .immediate)
+        elevenLabsPlayer?.stop()
+    }
+}
+
+// MARK: - TTS State
+var ttsLastSpokenIndex = 0
+
+func resetTTS() {
+    ttsLastSpokenIndex = 0
+    Task { @MainActor in
+        SpeechManager.shared.stop()
+    }
+}
+
+func speak(transcript: String) {
+    Task { @MainActor in
+        SpeechManager.shared.speak(transcript)
+    }
+}
+
+func streamTTS(text: String, isFinal: Bool) {
+    let isConnected = UserDefaults.standard.bool(forKey: "isConnected")
+    
+    if isConnected {
+        // Cloud TTS
+        if isFinal {
+            let cleanText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleanText.isEmpty {
+                speak11Labs(transcript: cleanText)
+            }
+        }
+    } else {
+        // Local TTS Chunking
+        let safeIndex = min(ttsLastSpokenIndex, text.count)
+        let unprocessed = String(text.dropFirst(safeIndex))
+        
+        if isFinal {
+            let cleanText = unprocessed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleanText.isEmpty {
+                speak(transcript: cleanText)
+            }
+            ttsLastSpokenIndex = 0
+            return
+        }
+        
+        let delimiters: [Character] = [".", "?", "!", "\n", ":", ";"]
+        if let lastDelimiterIndex = unprocessed.lastIndex(where: { delimiters.contains($0) }) {
+            let chunkIndex = unprocessed.index(after: lastDelimiterIndex)
+            let chunk = String(unprocessed[..<chunkIndex])
+            
+            ttsLastSpokenIndex += chunk.count
+            
+            let cleanChunk = chunk.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleanChunk.isEmpty {
+                speak(transcript: cleanChunk)
+            }
+        }
+    }
+}
 
 // MARK: - Model Runner Function
 
-/// Runs the LLM in a detached background task and reports back via callbacks
-/// Runs the LLM in a detached background task and reports back via callbacks
 func runModel(
     prompt: String,
     onDownload: @escaping (Float) -> Void,
     onStream: @escaping (String) -> Void,
     onComplete: @escaping (Error?) -> Void
 ) {
-    @AppStorage("onboarded")
-    var onboarded: Bool = false
+    let isOnboarded = UserDefaults.standard.bool(forKey: "onboarded")
+    let isConnected = UserDefaults.standard.bool(forKey: "isConnected")
     
-    @AppStorage("isConnected")
-    var isConnected: Bool = false
+    resetTTS()
     
-    /// If the device is connected to wifi and the user is already onboarded (model is already downloaded and this call is not an attempt to download the local model), then use the Google Gemma API. Otherwise, run the device locally with Zetic AI.
-    
-    if isConnected {
+    if isConnected && isOnboarded {
         print("Calling Model Run With Google Gemma API")
         runModelCloud(prompt: prompt, onStream: onStream, onComplete: onComplete)
         return
@@ -43,9 +140,11 @@ func runModel(
     
     print("Calling Model Run With Zetic AI")
     
-    Task.detached {
+    // FIX: Replaced `Task.detached` with GCD. `waitForNextToken()` is a deeply synchronous,
+    // blocking C++ call. Running it inside Swift Concurrency violates the cooperative thread
+    // pool, which triggers the "unsafeForcedSync" runtime warnings you saw. GCD safely bypasses this.
+    DispatchQueue.global(qos: .userInitiated).async {
         do {
-            // Initialize Model ONLY if it hasn't been created yet
             if sharedModel == nil {
                 sharedModel = try ZeticMLangeLLMModel(
                     personalKey: ProcessInfo.processInfo.environment["personalToken"] ?? "",
@@ -58,14 +157,11 @@ func runModel(
                 )
             }
 
-            // Safely unwrap our cached model
             guard let model = sharedModel else { return }
 
-            // Start Generation
             try model.run(prompt)
             var buffer = ""
 
-            // Streaming Loop
             while true {
                 let waitResult = model.waitForNextToken()
 
@@ -75,11 +171,14 @@ func runModel(
 
                 buffer.append(waitResult.token)
                 
-                // Filter out inline thinking tags in case the local model outputs them
-                onStream(filterThinkingTags(from: buffer))
+                let filtered = filterThinkingTags(from: buffer)
+                onStream(filtered)
+                streamTTS(text: filtered, isFinal: false)
             }
 
-            // Signal Success
+            let finalFiltered = filterThinkingTags(from: buffer)
+            streamTTS(text: finalFiltered, isFinal: true)
+            
             onComplete(nil)
             print("Finished generation successfully.")
 
@@ -90,41 +189,14 @@ func runModel(
     }
 }
 
-func speak(transcript: String) {
-    // Create an utterance.
-    let utterance = AVSpeechUtterance(string: transcript)
 
-    // Configure the utterance.
-    utterance.rate = 0.57
-    utterance.pitchMultiplier = 0.8
-    utterance.postUtteranceDelay = 0.2
-    utterance.volume = 0.8
-
-    // Retrieve the British English voice.
-    let voice = AVSpeechSynthesisVoice(language: "en-GB")
-
-    // Assign the voice to the utterance.
-    utterance.voice = voice
-
-    // Tell the synthesizer to speak the utterance.
-    synthesizer.speak(utterance)
-}
-
-// MARK: - ElevenLabs Config
+// MARK: - ElevenLabs Config & Logic
 let elevenLabsAPIKey = ProcessInfo.processInfo.environment["elevenLabsAPIKey"] ?? ""
 let elevenLabsVoiceId = ProcessInfo.processInfo.environment["elevenLabsVoiceId"] ?? ""
 
-// MARK: - ElevenLabs Audio Player
-// Must be global to survive beyond the URLSession callback scope
-var elevenLabsPlayer: AVAudioPlayer?
-
 func speak11Labs(transcript: String) {
-    guard let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(elevenLabsVoiceId)/stream") else {
-        print("ElevenLabs: Invalid URL")
-        return
-    }
+    guard let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(elevenLabsVoiceId)/stream") else { return }
 
-    // Build request
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -141,49 +213,32 @@ func speak11Labs(transcript: String) {
         ]
     ]
 
-    guard let body = try? JSONSerialization.data(withJSONObject: payload) else {
-        print("ElevenLabs: Failed to encode request body")
-        return
-    }
+    guard let body = try? JSONSerialization.data(withJSONObject: payload) else { return }
     request.httpBody = body
 
-    // Stream audio data then hand it to AVAudioPlayer
     URLSession.shared.dataTask(with: request) { data, response, error in
-        if let error = error {
-            print("ElevenLabs network error: \(error.localizedDescription)")
-            return
-        }
+        if let error = error { print("ElevenLabs error: \(error)"); return }
+        guard let data = data, !data.isEmpty else { return }
 
-        // Surface HTTP-level errors (bad key, quota exceeded, etc.)
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-            print("ElevenLabs HTTP \(http.statusCode): \(body)")
-            return
-        }
+        Task { @MainActor in
+            do {
+                try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options:[.duckOthers, .mixWithOthers])
+                try AVAudioSession.sharedInstance().setActive(true)
 
-        guard let data = data, !data.isEmpty else {
-            print("ElevenLabs: Empty audio response")
-            return
-        }
-
-        do {
-            // Configure audio session for playback
-            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
-            try AVAudioSession.sharedInstance().setActive(true)
-
-            let player = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.mp3.rawValue)
-            elevenLabsPlayer = player  // retain
-            player.prepareToPlay()
-            player.play()
-        } catch {
-            print("ElevenLabs playback error: \(error.localizedDescription)")
+                let player = try AVAudioPlayer(data: data, fileTypeHint: AVFileType.mp3.rawValue)
+                SpeechManager.shared.elevenLabsPlayer = player
+                player.prepareToPlay()
+                player.play()
+            } catch {
+                print("ElevenLabs playback error: \(error.localizedDescription)")
+            }
         }
     }.resume()
 }
 
+
 // MARK: - Cloud Model Runner Function
 
-/// Runs the Gemma 4 31B model via the Google Gemini API and streams the response
 func runModelCloud(
     prompt: String,
     onStream: @escaping (String) -> Void,
@@ -194,23 +249,16 @@ func runModelCloud(
         let modelName = "gemma-4-31b-it"
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(modelName):streamGenerateContent?alt=sse&key=\(gemmaApiKey)"
         
-        guard let url = URL(string: urlString) else {
-            onComplete(NSError(domain: "ModelRunCloud", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid Gemini URL"]))
-            return
-        }
+        guard let url = URL(string: urlString) else { return }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Gemini API payload structure
-        let payload: [String: Any] = [
-            "contents": [[
-                    "role": "user",
-                    "parts": [
-                        ["text": prompt]
-                    ]
-                ]
+        let payload:[String: Any] = [
+            "contents": [
+                "role": "user",
+                "parts": [["text": prompt]]
             ],
             "generationConfig": [
                 "thinkingConfig": [
@@ -221,94 +269,105 @@ func runModelCloud(
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: payload)
-            
-            // Execute streaming request
             let (bytes, response) = try await URLSession.shared.bytes(for: request)
             
-            guard let httpResponse = response as? HTTPURLResponse else {
-                onComplete(NSError(domain: "ModelRunCloud", code: 2, userInfo:[NSLocalizedDescriptionKey: "Invalid Response"]))
-                return
-            }
-            
-            // Surface HTTP-level errors (bad key, quota exceeded, etc.)
+            guard let httpResponse = response as? HTTPURLResponse else { return }
             guard (200...299).contains(httpResponse.statusCode) else {
                 onComplete(NSError(domain: "ModelRunCloud", code: httpResponse.statusCode, userInfo:[NSLocalizedDescriptionKey: "Gemini HTTP Error \(httpResponse.statusCode)"]))
                 return
             }
             
             var buffer = ""
-            
-            // Read the Server-Sent Events stream line by line
             for try await line in bytes.lines {
-                // Gemini API SSE chunks start with "data: "
                 if line.hasPrefix("data: ") {
                     let jsonString = line.dropFirst("data: ".count)
                     
-                    // Parse the JSON chunk to extract the generated text segment
                     if let data = jsonString.data(using: .utf8),
                        let json = try? JSONSerialization.jsonObject(with: data) as?[String: Any],
                        let candidates = json["candidates"] as? [[String: Any]],
                        let firstCandidate = candidates.first,
-                       let content = firstCandidate["content"] as? [String: Any],
+                       let content = firstCandidate["content"] as?[String: Any],
                        let parts = content["parts"] as? [[String: Any]] {
                         
                         var chunkAdded = false
-                        
                         for part in parts {
-                            // 1. Skip native Gemini chain-of-thought parts
-                            // (Gemini returns a "thought" boolean for thinking blocks)
-                            if let isThought = part["thought"] as? Bool, isThought {
-                                continue
-                            }
-                            
-                            // 2. Extract standard text parts
+                            if let isThought = part["thought"] as? Bool, isThought { continue }
                             if let textChunk = part["text"] as? String {
                                 buffer += textChunk
                                 chunkAdded = true
                             }
                         }
                         
-                        // Only stream back to the UI if we received something valid
                         if chunkAdded {
-                            // Run the string through the tag filter before updating the UI
-                            onStream(filterThinkingTags(from: buffer))
+                            let filtered = filterThinkingTags(from: buffer)
+                            onStream(filtered)
+                            streamTTS(text: filtered, isFinal: false)
                         }
                     }
                 }
             }
             
-            // Signal Success
+            let finalFiltered = filterThinkingTags(from: buffer)
+            streamTTS(text: finalFiltered, isFinal: true)
             onComplete(nil)
-            print("Finished cloud generation successfully.")
             
         } catch {
-            print("Cloud model error: \(error.localizedDescription)")
             onComplete(error)
         }
     }
 }
 
-/// Removes `<think>...</think>` blocks from text. Used to hide model reasoning from the UI stream.
 func filterThinkingTags(from text: String) -> String {
     var displayBuffer = text
     
-    // Remove all fully closed <think>...</think> blocks
-    while let start = displayBuffer.range(of: "<think>"),
-          let end = displayBuffer.range(of: "</think>", range: start.upperBound..<displayBuffer.endIndex) {
-        
-        displayBuffer.removeSubrange(start.lowerBound..<end.upperBound)
-        
-        // Clean up trailing newlines left at the beginning if <think> was the first thing
-        if start.lowerBound == displayBuffer.startIndex {
-            while displayBuffer.hasPrefix("\n") {
-                displayBuffer.removeFirst()
+    // Support standard tags + Gemma 4 reasoning tags
+    let openClosePairs = [
+        ("<think>", "</think>"),
+        ("<thought>", "</thought>"),
+        ("<|thought|>", "</|thought|>"),
+        ("<|think|>", "</|think|>"),
+        ("<|channel>thought", "<channel|>")
+    ]
+    
+    // 1. Remove fully enclosed blocks
+    for (openTag, closeTag) in openClosePairs {
+        while let start = displayBuffer.range(of: openTag),
+              let end = displayBuffer.range(of: closeTag, range: start.upperBound..<displayBuffer.endIndex) {
+            displayBuffer.removeSubrange(start.lowerBound..<end.upperBound)
+            if start.lowerBound == displayBuffer.startIndex {
+                while displayBuffer.hasPrefix("\n") { displayBuffer.removeFirst() }
             }
         }
     }
     
-    // Remove an unclosed <think> block at the end (hides thinking process while it is actively streaming)
-    if let start = displayBuffer.range(of: "<think>") {
-        displayBuffer.removeSubrange(start.lowerBound..<displayBuffer.endIndex)
+    // 2. Remove currently open/unclosed blocks
+    for (openTag, _) in openClosePairs {
+        if let start = displayBuffer.range(of: openTag) {
+            displayBuffer.removeSubrange(start.lowerBound..<displayBuffer.endIndex)
+        }
+    }
+    
+    // 3. Prevent partial streaming string tags (e.g., `<|chan`) from leaking to the TTS chunker
+    let openTags = openClosePairs.map { $0.0 }
+    let maxOpenTagLength = openTags.map { $0.count }.max() ?? 0
+    let checkLength = min(displayBuffer.count, maxOpenTagLength)
+    
+    if checkLength > 0 {
+        // Iterate backwards through the end of the string to find forming tags
+        for i in 1...checkLength {
+            let suffixIndex = displayBuffer.index(displayBuffer.endIndex, offsetBy: -i)
+            
+            // Only evaluate if the substring chunk starts with '<' to maintain performance
+            if displayBuffer[suffixIndex] == "<" {
+                let suffix = String(displayBuffer[suffixIndex...])
+                
+                // If the suffix is a partial match for any of our known open tags, strip it
+                if openTags.contains(where: { $0.hasPrefix(suffix) && $0 != suffix }) {
+                    displayBuffer.removeLast(i)
+                    break
+                }
+            }
+        }
     }
     
     return displayBuffer
