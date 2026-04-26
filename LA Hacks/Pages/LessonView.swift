@@ -48,9 +48,9 @@ struct LessonContent {
     let problems: [LessonProblem]
 }
 
-// MARK: - Lesson bank (static fallbacks for hardcoded stars)
+// MARK: - Lesson bank
 
-func lessonFor(node: StarNode) -> LessonContent {
+private func lessonFor(node: StarNode) -> LessonContent {
     switch node.id {
     case "add":
         return LessonContent(
@@ -194,13 +194,7 @@ private enum BottomInputKind {
 
 struct LessonView: View {
     let node: StarNode
-    let constellationName: String        // ← NEW
-    let course: String                   // ← NEW
-    let blurb: String?                   // ← NEW
-    let siblingLabels: [String]          // ← NEW
     let onClose: () -> Void
-
-    @StateObject private var lessonLoader = LessonLoader()  // ← NEW
 
     @State private var msgs: [ChatMsg] = []
     @State private var isTyping = false
@@ -214,14 +208,26 @@ struct LessonView: View {
     @State private var hintShown = false
     @State private var questionKey = 0
     @State private var chatBreakInput: String = ""
+    @State private var outcomes: [PastProblemOutcome] = []
     @FocusState private var chatBreakFocused: Bool
+
+    @State private var stickerQueue: [StarStickerItem] = []
+    @State private var currentStickerToast: StarStickerItem? = nil
 
     enum Phase { case intro, example, practice, chatBreak, celebrate }
 
-    // ← REMOVED: private var lesson: LessonContent { lessonFor(node: node) }
-
-    private var pal: StarPalette { node.status.palette }
-    private var nProbs: Int { lessonLoader.lessonContent?.problems.count ?? 0 }  // ← CHANGED
+    private var lesson: LessonContent { lessonFor(node: node) }
+    private var pal: StarPalette {
+        let allNeighborIds: [String] = GalaxyData.constellations.flatMap { c in
+            c.edges.compactMap { e -> String? in
+                if e.a == node.id { return e.b }
+                if e.b == node.id { return e.a }
+                return nil
+            }
+        }
+        return UserSettings.shared.stage(for: node.id, initiallyLocked: node.initiallyLocked, neighborIds: allNeighborIds).palette
+    }
+    private var nProbs: Int { lesson.problems.count }
 
     private var progress: Double {
         switch phase {
@@ -233,111 +239,54 @@ struct LessonView: View {
         }
     }
 
-    // MARK: - Body
-
     var body: some View {
         ZStack(alignment: .top) {
             Color(hex: 0x09041E).ignoresSafeArea()
             stardust.ignoresSafeArea()
 
-            // ← NEW: switch on load state
-            switch lessonLoader.state {
-
-            case .idle, .generatingOpening, .generatingProblems:
-                lessonLoadingView
-
-            case .ready:
-                VStack(spacing: 0) {
-                    chatHeader
-                    progressStrip
-                    chatScroll
-                    if phase == .chatBreak {
-                        chatBreakInputArea
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    } else if let inp = bottomInput {
-                        LessonInputArea(
-                            inputKind: inp,
-                            pal: pal,
-                            hintShown: $hintShown,
-                            questionKey: questionKey,
-                            onAction: handleAction,
-                            onAnswer: handleAnswer,
-                            onHint: { prob in
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    msgs.append(ChatMsg(source: .nova, text: prob.hint, isHint: true))
-                                }
-                            }
-                        )
+            VStack(spacing: 0) {
+                chatHeader
+                progressStrip
+                chatScroll
+                if phase == .chatBreak {
+                    chatBreakInputArea
                         .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if let inp = bottomInput {
+                    LessonInputArea(
+                        inputKind: inp,
+                        pal: pal,
+                        hintShown: $hintShown,
+                        questionKey: questionKey,
+                        onAction: handleAction,
+                        onAnswer: handleAnswer,
+                        onHint: { prob in
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                msgs.append(ChatMsg(source: .nova, text: prob.hint, isHint: true))
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.82), value: bottomInput != nil)
+        }
+        .dismissesKeyboard()
+        .onAppear { startIntro() }
+        .overlay {
+            if let sticker = currentStickerToast {
+                StickerEarnedToast(sticker: sticker) {
+                    currentStickerToast = nil
+                    if !stickerQueue.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            currentStickerToast = stickerQueue.removeFirst()
+                        }
                     }
                 }
-                .animation(.spring(response: 0.35, dampingFraction: 0.82), value: bottomInput != nil)
-                .onAppear { startIntro() }  // ← moved here from outer body
-
-            case .failed:
-                VStack(spacing: 20) {
-                    Spacer()
-                    Text("⚠️").font(.system(size: 48))
-                    Text("Couldn't generate lesson")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("Check your connection and try again.")
-                        .font(.system(size: 13, design: .rounded))
-                        .foregroundColor(.white.opacity(0.5))
-                    Button("Try Again") {
-                        lessonLoader.load(
-                            node: node,
-                            constellationName: constellationName,
-                            course: course,
-                            blurb: blurb,
-                            siblingLabels: siblingLabels
-                        )
-                    }
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color(hex: 0x3A2A00))
-                    .padding(.horizontal, 28).padding(.vertical, 12)
-                    .background(Color(hex: 0xFFE066))
-                    .clipShape(Capsule())
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .transition(.opacity)
+                .zIndex(100)
             }
         }
-        // ← NEW: .task instead of .onAppear
-        .task {
-            lessonLoader.load(
-                node: node,
-                constellationName: constellationName,
-                course: course,
-                blurb: blurb,
-                siblingLabels: siblingLabels
-            )
-        }
-    }
-
-    // MARK: - Loading view (NEW)
-
-    private var lessonLoadingView: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            Text(node.emoji)
-                .font(.system(size: 64))
-            Text(lessonLoader.progressLabel)
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(Color(hex: 0xFFE066))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            if !lessonLoader.streamPreview.isEmpty {
-                Text(lessonLoader.streamPreview)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Color(hex: 0x5EE7FF, opacity: 0.55))
-                    .lineLimit(3)
-                    .padding(.horizontal, 24)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.easeInOut(duration: 0.25), value: currentStickerToast != nil)
     }
 
     // MARK: - Header
@@ -403,7 +352,7 @@ struct LessonView: View {
         .overlay(Rectangle().fill(Color.white.opacity(0.055)).frame(height: 1), alignment: .bottom)
     }
 
-    // MARK: - Progress strip
+    // MARK: - Progress strip (3 px)
 
     private var progressStrip: some View {
         GeometryReader { g in
@@ -441,12 +390,15 @@ struct LessonView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 8)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.visible)
+            .onAppear {
+                proxy.scrollTo("__end", anchor: .bottom)
+            }
             .onChange(of: msgs.count) {
-                withAnimation { proxy.scrollTo("__end") }
+                withAnimation { proxy.scrollTo("__end", anchor: .bottom) }
             }
             .onChange(of: isTyping) {
-                if isTyping { withAnimation { proxy.scrollTo("__end") } }
+                withAnimation { proxy.scrollTo("__end", anchor: .bottom) }
             }
         }
     }
@@ -498,7 +450,7 @@ struct LessonView: View {
             }
         }
     }
-
+    
     private func sendNovaAI(userQuery: String, then: (() -> Void)? = nil) {
         bottomInput = nil
         withAnimation(.easeOut(duration: 0.18)) { isTyping = true }
@@ -525,7 +477,7 @@ struct LessonView: View {
                 DispatchQueue.main.async {
                     withAnimation(.easeOut(duration: 0.15)) {
                         isTyping = false
-                        msgs.append(ChatMsg(source: .nova, text: result.text))
+                        msgs.append(ChatMsg(source: .nova, text: result.text.isEmpty ? result.text : result.text))
                     }
                     then?()
                 }
@@ -536,12 +488,10 @@ struct LessonView: View {
     // MARK: - Lesson flow
 
     private func startIntro() {
-        // ← CHANGED: read from lessonLoader
-        let intro = lessonLoader.lessonContent?.intro ?? ""
         sendNova([
             "Hey, space explorer! 🚀",
             "Today we're tackling \(node.label).",
-            intro,
+            lesson.intro,
         ]) {
             bottomInput = .action(label: "Let's go! 🚀", kind: .toExample)
         }
@@ -549,13 +499,10 @@ struct LessonView: View {
 
     private func startExample() {
         phase = .example
-        // ← CHANGED: read from lessonLoader
-        let exQ = lessonLoader.lessonContent?.exampleQuestion ?? ""
-        let exA = lessonLoader.lessonContent?.exampleAnswer ?? ""
         sendNova([
             "Let me show you one first. 👀",
-            exQ,
-            "The answer: \(exA)",
+            lesson.exampleQuestion,
+            "The answer: \(lesson.exampleAnswer)",
             "Got it? Now let's see what you can do! 💪",
         ]) {
             bottomInput = .action(label: "Try me! 💪", kind: .toPractice)
@@ -572,18 +519,13 @@ struct LessonView: View {
         hintShown = false
         questionKey += 1
 
-        // ← CHANGED: read from lessonLoader
-        let problems = lessonLoader.lessonContent?.problems ?? []
-        guard idx < problems.count else { celebrate(); return }
-        var p = problems[idx]
-
-        // Convert pizza → MC
+        var p = lesson.problems[idx]
+        // Convert pizza → MC, matching lesson.jsx behavior
         if p.kind == .pizza {
             let choices = (1...max(1, p.slices)).map { "\($0)/\(p.slices)" }
             let answer = "\(p.target)/\(p.slices)"
-            let prompt = p.prompt
-                .replacingOccurrences(of: "Tap to color in", with: "How many slices for")
-                .replacingOccurrences(of: "Tap to show", with: "How many slices for")
+            let prompt = p.prompt.replacingOccurrences(of: "Tap to color in", with: "How many slices for")
+                                  .replacingOccurrences(of: "Tap to show", with: "How many slices for")
             p = LessonProblem.mc(prompt, choices: choices, answer: answer, hint: p.hint)
         }
 
@@ -609,6 +551,7 @@ struct LessonView: View {
         let correct = val.trimmingCharacters(in: .whitespaces).lowercased()
                       == problem.answer.trimmingCharacters(in: .whitespaces).lowercased()
 
+        // Immediately append colored bubble — before LLM responds
         withAnimation(.easeOut(duration: 0.18)) {
             msgs.append(ChatMsg(
                 source: .student,
@@ -617,6 +560,15 @@ struct LessonView: View {
             ))
         }
         bottomInput = nil
+
+        outcomes.append(PastProblemOutcome(
+            prompt: problem.prompt,
+            correctAnswer: problem.answer,
+            studentAnswer: val,
+            correct: correct,
+            attempts: 1,
+            hintUsed: usedHint
+        ))
 
         if correct {
             streak += 1
@@ -641,10 +593,54 @@ struct LessonView: View {
             }
         }
     }
-
+    
     private func celebrate() {
         phase = .celebrate
         let capXP = xpGained; let capH = hearts; let capHints = hintsUsed
+        let capOutcomes = outcomes
+        let correctCount = capOutcomes.filter { $0.correct }.count
+        let constellationId = GalaxyData.nodesById[node.id]?.constellationId
+
+        Task {
+            await MemoryStore.shared.recordLesson(
+                node: node,
+                constellationName: GalaxyData.nodesById[node.id]?.constellationName,
+                outcomes: capOutcomes,
+                xpGained: capXP,
+                heartsLeft: capH,
+                hintsUsed: capHints
+            )
+        }
+        UserSettings.shared.recordStudySession(
+            xpEarned: capXP,
+            nodeId: node.id,
+            correctCount: correctCount,
+            totalCount: capOutcomes.count,
+            hintsUsed: capHints,
+            constellationId: constellationId
+        )
+
+        // Show celebration overlay for each newly earned sticker
+        let newIds = UserSettings.shared.recentlyUnlocked
+        if !newIds.isEmpty {
+            let allStickers = StarStickerData.items(
+                unlocked: UserSettings.shared.unlockedStickers,
+                dates: UserSettings.shared.stickerEarnedDates
+            )
+            let newStickers = newIds.compactMap { id in allStickers.first { $0.id == id } }
+            if let first = newStickers.first {
+                NotificationManager.shared.scheduleStickerEarnedNotification(
+                    name: UserSettings.shared.explorerName,
+                    stickerName: first.label,
+                    emoji: first.emoji
+                )
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    stickerQueue = Array(newStickers.dropFirst())
+                    currentStickerToast = first
+                }
+            }
+        }
+
         sendNova([
             "🎉 Lesson complete, superstar!",
             "You answered all \(nProbs) questions. Here's how you did:",
@@ -660,13 +656,13 @@ struct LessonView: View {
             }
         }
     }
-
-    // MARK: - Chat break
-
+    
     private var chatBreakInputArea: some View {
         VStack(spacing: 0) {
             Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+
             VStack(spacing: 8) {
+                // Row 1: text field + send button
                 HStack(spacing: 8) {
                     TextField("", text: $chatBreakInput,
                               prompt: Text("Ask Nova more about this…")
@@ -674,8 +670,14 @@ struct LessonView: View {
                         .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14).padding(.vertical, 12)
-                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.06)))
-                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1.5))
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.14), lineWidth: 1.5)
+                        )
                         .focused($chatBreakFocused)
                         .onSubmit { sendChatBreakMessage() }
 
@@ -700,13 +702,19 @@ struct LessonView: View {
                     .disabled(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
 
+                // Row 2: next question button — same total width as row above
                 Button(action: resumeAfterChatBreak) {
                     Text(qIdx >= nProbs ? "🎉 Finish lesson!" : "Next question →")
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(Color(hex: 0x1A0B40))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 13)
-                        .background(LinearGradient(colors: [pal.mid, pal.halo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .background(
+                            LinearGradient(
+                                colors: [pal.mid, pal.halo],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .shadow(color: pal.glow.opacity(0.5), radius: 10, x: 0, y: 4)
                 }
@@ -722,15 +730,18 @@ struct LessonView: View {
         guard !q.isEmpty else { return }
         chatBreakInput = ""
         chatBreakFocused = false
+
         withAnimation(.easeOut(duration: 0.18)) {
             msgs.append(ChatMsg(source: .student, text: q))
         }
+
         sendNovaAI(userQuery: q)
     }
 
     private func resumeAfterChatBreak() {
         phase = .practice
-        if qIdx >= nProbs { celebrate() } else { askQ(qIdx) }
+        let done = qIdx >= nProbs
+        if done { celebrate() } else { askQ(qIdx) }
     }
 }
 
@@ -750,18 +761,11 @@ struct NovaAvatarView: View {
     let pal: StarPalette
 
     var body: some View {
-        Text("✦")
-            .font(.system(size: size * 0.42, weight: .bold))
-            .foregroundColor(.white)
+        Image("Nova Image")
+            .resizable()
+            .scaledToFit()
             .frame(width: size, height: size)
-            .background(
-                Circle().fill(LinearGradient(
-                    colors: [pal.mid, pal.halo],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-            )
-            .overlay(Circle().stroke(pal.mid.opacity(0.3), lineWidth: 2))
-            .shadow(color: pal.glow, radius: 8)
+            .shadow(color: pal.glow, radius: size * 0.3)
     }
 }
 
@@ -805,33 +809,35 @@ private struct MsgBubble: View {
     private var studentBubble: some View {
         HStack {
             Spacer(minLength: 44)
-            Text(msg.text)
-                .font(.system(size: 14.5, weight: .semibold, design: .rounded))
-                .foregroundColor(.white)
-                .lineSpacing(2)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(
-                            msg.answerResult == .correct
-                                ? AnyShapeStyle(LinearGradient(
-                                    colors: [Color(hex: 0x34C759), Color(hex: 0x30B354)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing))
-                                : msg.answerResult == .incorrect
-                                ? AnyShapeStyle(LinearGradient(
-                                    colors: [Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing))
-                                : AnyShapeStyle(LinearGradient(
-                                    colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
-                                    startPoint: .topLeading, endPoint: .bottomTrailing))
-                        )
-                )
-                .shadow(color: msg.answerResult == .correct
-                            ? Color(hex: 0x34C759, opacity: 0.4)
+            HStack(spacing: 6) {
+                Text(msg.text)
+                    .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineSpacing(2)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        msg.answerResult == .correct
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0x34C759), Color(hex: 0x30B354)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
                             : msg.answerResult == .incorrect
-                            ? Color(hex: 0xFF3B30, opacity: 0.4)
-                            : Color(hex: 0xFF8A4C, opacity: 0.3),
-                        radius: 8, x: 0, y: 2)
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                            : AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                    )
+            )
+            .shadow(color: msg.answerResult == .correct
+                        ? Color(hex: 0x34C759, opacity: 0.4)
+                        : msg.answerResult == .incorrect
+                        ? Color(hex: 0xFF3B30, opacity: 0.4)
+                        : Color(hex: 0xFF8A4C, opacity: 0.3),
+                    radius: 8, x: 0, y: 2)
         }
     }
 
@@ -839,10 +845,10 @@ private struct MsgBubble: View {
         HStack(alignment: .bottom, spacing: 8) {
             NovaAvatarView(size: 26, pal: pal)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
-                statTile("✨", label: "XP earned",   val: "+\(msg.statsXP)",      c: Color(hex: 0xFFE066))
+                statTile("✨", label: "XP earned",   val: "+\(msg.statsXP)",   c: Color(hex: 0xFFE066))
                 statTile("❤️", label: "Hearts left", val: "\(msg.statsHearts)/3", c: Color(hex: 0xFF8AD8))
-                statTile("💡", label: "Hints used",  val: "\(msg.statsHints)",    c: Color(hex: 0x5EE7FF))
-                statTile("🔥", label: "Streak",      val: "+1 day",               c: Color(hex: 0xFF8A4C))
+                statTile("💡", label: "Hints used",  val: "\(msg.statsHints)", c: Color(hex: 0x5EE7FF))
+                statTile("🔥", label: "Streak",      val: "+1 day",            c: Color(hex: 0xFF8A4C))
             }
             .frame(width: 240)
             Spacer(minLength: 0)
@@ -862,8 +868,14 @@ private struct MsgBubble: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8).padding(.horizontal, 10)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.06)))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.white.opacity(0.1), lineWidth: 1)
+        )
     }
 }
 
@@ -871,13 +883,20 @@ private struct MsgBubble: View {
 
 private struct TypingBubble: View {
     let pal: StarPalette
+
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             NovaAvatarView(size: 26, pal: pal)
             BouncingDots()
                 .padding(.horizontal, 16).padding(.vertical, 12)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color(hex: 0x201048, opacity: 0.9)))
-                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.08), lineWidth: 1))
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color(hex: 0x201048, opacity: 0.9))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
                 .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 2)
         }
     }
@@ -937,7 +956,9 @@ private struct LessonInputArea: View {
                 .foregroundColor(Color(hex: 0x1A0B40))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(LinearGradient(colors: [pal.mid, pal.halo], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .background(
+                    LinearGradient(colors: [pal.mid, pal.halo], startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .shadow(color: pal.glow, radius: 16, x: 0, y: 6)
         }
@@ -955,6 +976,7 @@ private struct MCChoicesView: View {
     @Binding var hintShown: Bool
     let onAnswer: (String, LessonProblem, Int, Bool) -> Void
     let onHint: (LessonProblem) -> Void
+
     @State private var tapped: String? = nil
 
     var body: some View {
@@ -986,7 +1008,10 @@ private struct MCChoicesView: View {
                                   ? AnyShapeStyle(LinearGradient(colors: [pal.mid.opacity(0.8), pal.halo.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                   : AnyShapeStyle(Color.white.opacity(0.055)))
                     )
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(isTapped ? pal.mid : Color.white.opacity(0.12), lineWidth: 1.5))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(isTapped ? pal.mid : Color.white.opacity(0.12), lineWidth: 1.5)
+                    )
                     .shadow(color: isTapped ? pal.glow.opacity(0.5) : .clear, radius: 8)
                     .animation(.easeOut(duration: 0.15), value: isTapped)
                 }
@@ -1007,6 +1032,7 @@ private struct TextInputView: View {
     @Binding var hintShown: Bool
     let onAnswer: (String, LessonProblem, Int, Bool) -> Void
     let onHint: (LessonProblem) -> Void
+
     @State private var textVal = ""
 
     var body: some View {
@@ -1018,9 +1044,16 @@ private struct TextInputView: View {
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                     .padding(.horizontal, 14).padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1.5))
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.white.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.white.opacity(0.14), lineWidth: 1.5)
+                    )
                     .onSubmit { submit() }
+
                 Button(action: submit) {
                     Text("→")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -1057,7 +1090,10 @@ private struct HintButton: View {
 
     var body: some View {
         if !hintShown && !problem.hint.isEmpty {
-            Button(action: { hintShown = true; onHint(problem) }) {
+            Button(action: {
+                hintShown = true
+                onHint(problem)
+            }) {
                 HStack(spacing: 6) {
                     Text("💡 Show hint")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
