@@ -8,6 +8,9 @@
 
 import SwiftUI
 
+var streamedResponse: String = ""
+var lastAnswerCorrect: Bool? = nil
+
 // MARK: - Problem types (unchanged)
 
 enum ProblemKind {
@@ -173,6 +176,8 @@ private struct ChatMsg: Identifiable {
     var statsXP: Int = 0
     var statsHearts: Int = 3
     var statsHints: Int = 0
+    var answerResult: AnswerResult? = nil
+    enum AnswerResult { case correct, incorrect }
 }
 
 // MARK: - Input area state
@@ -202,8 +207,10 @@ struct LessonView: View {
     @State private var qIdx = 0
     @State private var hintShown = false
     @State private var questionKey = 0
+    @State private var chatBreakInput: String = ""
+    @FocusState private var chatBreakFocused: Bool
 
-    enum Phase { case intro, example, practice, celebrate }
+    enum Phase { case intro, example, practice, chatBreak, celebrate }
 
     private var lesson: LessonContent { lessonFor(node: node) }
     private var pal: StarPalette { node.status.palette }
@@ -214,6 +221,7 @@ struct LessonView: View {
         case .intro:     return 0.02
         case .example:   return 0.10
         case .practice:  return nProbs > 0 ? 0.12 + Double(qIdx) / Double(nProbs) * 0.85 : 0.12
+        case .chatBreak: return nProbs > 0 ? 0.12 + Double(qIdx) / Double(nProbs) * 0.85 : 0.12
         case .celebrate: return 1.0
         }
     }
@@ -227,7 +235,10 @@ struct LessonView: View {
                 chatHeader
                 progressStrip
                 chatScroll
-                if let inp = bottomInput {
+                if phase == .chatBreak {
+                    chatBreakInputArea
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if let inp = bottomInput {
                     LessonInputArea(
                         inputKind: inp,
                         pal: pal,
@@ -272,7 +283,7 @@ struct LessonView: View {
                 HStack(spacing: 0) {
                     Text("\(node.emoji) \(node.label)")
                         .foregroundColor(.white.opacity(0.5))
-                    if phase == .practice {
+                    if phase == .practice || phase == .chatBreak {
                         Text(" · Q\(qIdx+1)/\(nProbs)")
                             .foregroundColor(Color(hex: 0xFFCC50, opacity: 0.6))
                     }
@@ -407,6 +418,40 @@ struct LessonView: View {
             }
         }
     }
+    
+    private func sendNovaAI(userQuery: String, then: (() -> Void)? = nil) {
+        bottomInput = nil
+        withAnimation(.easeOut(duration: 0.18)) { isTyping = true }
+
+        let context = PipelineContext(
+            activeConstellationID: GalaxyData.nodesById[node.id]?.constellationId,
+            activeStarID: node.id,
+            studentName: "Explorer",
+            history: msgs.compactMap { m in
+                guard !m.isHint && !m.isStats else { return nil }
+                return ChatMessage(
+                    role: m.source == .student ? .user : .assistant,
+                    content: m.text
+                )
+            }
+        )
+
+        RAGPipeline.run(
+            userQuery: userQuery,
+            context: context,
+            onDownload: { _ in },
+            onStream: { _ in },
+            onComplete: { result in
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isTyping = false
+                        msgs.append(ChatMsg(source: .nova, text: result.text.isEmpty ? result.text : result.text))
+                    }
+                    then?()
+                }
+            }
+        )
+    }
 
     // MARK: - Lesson flow
 
@@ -471,13 +516,19 @@ struct LessonView: View {
     }
 
     private func handleAnswer(val: String, problem: LessonProblem, idx: Int, usedHint: Bool) {
+        let correct = val.trimmingCharacters(in: .whitespaces).lowercased()
+                      == problem.answer.trimmingCharacters(in: .whitespaces).lowercased()
+
+        // Immediately append colored bubble — before LLM responds
         withAnimation(.easeOut(duration: 0.18)) {
-            msgs.append(ChatMsg(source: .student, text: val))
+            msgs.append(ChatMsg(
+                source: .student,
+                text: val,
+                answerResult: correct ? .correct : .incorrect
+            ))
         }
         bottomInput = nil
 
-        let correct = val.trimmingCharacters(in: .whitespaces).lowercased()
-                      == problem.answer.trimmingCharacters(in: .whitespaces).lowercased()
         if correct {
             streak += 1
             xpGained += (usedHint ? 8 : 15) + (streak >= 2 ? 5 : 0)
@@ -489,15 +540,19 @@ struct LessonView: View {
 
         let next = idx + 1
         let done = next >= nProbs
-        let response = correct
-            ? randomCheer() + (streak >= 3 ? " 🔥 \(streak) in a row!" : "")
-            : "Not quite — the answer was \(problem.answer). \(randomEncourage())"
 
-        sendNova([response]) {
-            if done { self.celebrate() } else { self.askQ(next) }
+        let feedbackQuery = correct
+            ? "The student answered '\(val)' which is correct for the question: '\(problem.prompt)'. Give a short encouraging response\(streak >= 3 ? " and mention their \(streak)-answer streak" : "")."
+            : "The student answered '\(val)' but the correct answer is '\(problem.answer)' for the question: '\(problem.prompt)'. Gently explain why and offer to answer any questions they have."
+
+        sendNovaAI(userQuery: feedbackQuery) {
+            if done { self.celebrate() } else {
+                self.phase = .chatBreak
+                self.qIdx = next
+            }
         }
     }
-
+    
     private func celebrate() {
         phase = .celebrate
         let capXP = xpGained; let capH = hearts; let capHints = hintsUsed
@@ -515,6 +570,93 @@ struct LessonView: View {
                 withAnimation { self.bottomInput = .action(label: "Back to galaxy 🌌", kind: .toDone) }
             }
         }
+    }
+    
+    private var chatBreakInputArea: some View {
+        VStack(spacing: 0) {
+            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+
+            VStack(spacing: 8) {
+                // Row 1: text field + send button
+                HStack(spacing: 8) {
+                    TextField("", text: $chatBreakInput,
+                              prompt: Text("Ask Nova more about this…")
+                                  .foregroundColor(.white.opacity(0.4)))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .fill(Color.white.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(Color.white.opacity(0.14), lineWidth: 1.5)
+                        )
+                        .focused($chatBreakFocused)
+                        .onSubmit { sendChatBreakMessage() }
+
+                    Button(action: sendChatBreakMessage) {
+                        Text("→")
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                             ? .white.opacity(0.25) : Color(hex: 0x1A0B40))
+                            .frame(width: 48, height: 48)
+                            .background(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                          ? AnyShapeStyle(Color.white.opacity(0.07))
+                                          : AnyShapeStyle(LinearGradient(
+                                                colors: [pal.mid, pal.halo],
+                                                startPoint: .topLeading, endPoint: .bottomTrailing)))
+                            )
+                            .shadow(color: chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
+                                    ? .clear : pal.glow.opacity(0.6), radius: 10)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+
+                // Row 2: next question button — same total width as row above
+                Button(action: resumeAfterChatBreak) {
+                    Text(qIdx >= nProbs ? "🎉 Finish lesson!" : "Next question →")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(hex: 0x1A0B40))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(
+                            LinearGradient(
+                                colors: [pal.mid, pal.halo],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            )
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: pal.glow.opacity(0.5), radius: 10, x: 0, y: 4)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(EdgeInsets(top: 12, leading: 14, bottom: 28, trailing: 14))
+        }
+        .background(Color(hex: 0x09041E))
+    }
+
+    private func sendChatBreakMessage() {
+        let q = chatBreakInput.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return }
+        chatBreakInput = ""
+        chatBreakFocused = false
+
+        withAnimation(.easeOut(duration: 0.18)) {
+            msgs.append(ChatMsg(source: .student, text: q))
+        }
+
+        sendNovaAI(userQuery: q)
+    }
+
+    private func resumeAfterChatBreak() {
+        phase = .practice
+        let done = qIdx >= nProbs
+        if done { celebrate() } else { askQ(qIdx) }
     }
 }
 
@@ -589,19 +731,35 @@ private struct MsgBubble: View {
     private var studentBubble: some View {
         HStack {
             Spacer(minLength: 44)
-            Text(msg.text)
-                .font(.system(size: 14.5, weight: .semibold, design: .rounded))
-                .foregroundColor(Color(hex: 0x1A0B40))
-                .lineSpacing(2)
-                .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ))
-                )
-                .shadow(color: Color(hex: 0xFF8A4C, opacity: 0.3), radius: 8, x: 0, y: 2)
+            HStack(spacing: 6) {
+                Text(msg.text)
+                    .font(.system(size: 14.5, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineSpacing(2)
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        msg.answerResult == .correct
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0x34C759), Color(hex: 0x30B354)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                            : msg.answerResult == .incorrect
+                            ? AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                            : AnyShapeStyle(LinearGradient(
+                                colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing))
+                    )
+            )
+            .shadow(color: msg.answerResult == .correct
+                        ? Color(hex: 0x34C759, opacity: 0.4)
+                        : msg.answerResult == .incorrect
+                        ? Color(hex: 0xFF3B30, opacity: 0.4)
+                        : Color(hex: 0xFF8A4C, opacity: 0.3),
+                    radius: 8, x: 0, y: 2)
         }
     }
 

@@ -478,7 +478,7 @@ struct NovaAITab: View {
     @State private var isProcessing: Bool = false
     @State private var downloadProgress: Float = 0.0
     @FocusState private var isPromptFocused: Bool
-
+    
     // MARK: Thought Channel Parsing Logic
     
     private var parsedOutput: String {
@@ -505,7 +505,7 @@ struct NovaAITab: View {
         
         return trimmed
     }
-
+    
     private var currentlyThinking: Bool {
         if !isProcessing { return false }
         
@@ -535,7 +535,7 @@ struct NovaAITab: View {
         
         return false
     }
-
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -545,17 +545,17 @@ struct NovaAITab: View {
                     emoji: "🦊",
                     subtitle: "Chat with your AI tutor!"
                 )
-
+                
                 promptCard
                     .padding(.horizontal, 16)
                     .padding(.bottom, 16)
-
+                
                 if isProcessing && downloadProgress > 0 && downloadProgress < 1.0 {
                     downloadCard
                         .padding(.horizontal, 16)
                         .padding(.bottom, 16)
                 }
-
+                
                 if !rawOutput.isEmpty || isProcessing {
                     responseCard
                         .padding(.horizontal, 16)
@@ -570,13 +570,13 @@ struct NovaAITab: View {
         .scrollIndicators(.hidden)
         .foregroundColor(.white)
     }
-
+    
     private var promptCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("💬 YOUR QUESTION")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundColor(.white.opacity(0.65))
-
+            
             TextEditor(text: $prompt)
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .foregroundColor(.white)
@@ -601,7 +601,7 @@ struct NovaAITab: View {
                     }
                 }
                 .focused($isPromptFocused)
-
+            
             Button(action: runLLM) {
                 HStack(spacing: 8) {
                     if isProcessing {
@@ -620,8 +620,8 @@ struct NovaAITab: View {
                 .background(
                     LinearGradient(
                         colors: isProcessing
-                            ?[Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
-                            :[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                        ?[Color(hex: 0xFFE066, opacity: 0.55), Color(hex: 0xFFB300, opacity: 0.55)]
+                        :[Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
                 )
@@ -633,7 +633,7 @@ struct NovaAITab: View {
         }
         .sCard(padding: EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
     }
-
+    
     private var downloadCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
@@ -665,7 +665,7 @@ struct NovaAITab: View {
         }
         .sCard(stroke: Color(hex: 0xFFE066, opacity: 0.3), padding: EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
     }
-
+    
     private var responseCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
@@ -699,18 +699,19 @@ struct NovaAITab: View {
             padding: EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)
         )
     }
-
+    
     private func runLLM() {
         guard !isProcessing else { return }
         let userPrompt = prompt
         isProcessing = true
         rawOutput = ""
         downloadProgress = 0.0
-        
+
         var spokenLength = 0
         synthesizer.stopSpeaking(at: .immediate)
-        
-        let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
+
+        // No active constellation/star — Nova acts as a general tutor
+        // RAG will still retrieve relevant chunks if the query matches curriculum
 
         let context = PipelineContext(
             activeConstellationID: nil,
@@ -718,7 +719,7 @@ struct NovaAITab: View {
             studentName: "Explorer",
             history: []
         )
-
+        
         RAGPipeline.run(
             userQuery: userPrompt,
             context: context,
@@ -747,18 +748,22 @@ struct NovaAITab: View {
             onComplete: { result in
                 DispatchQueue.main.async {
                     self.isProcessing = false
-                    if let error = result.error {
-                        self.rawOutput = "Oops! Nova had a problem: \(error.localizedDescription)"
-                    } else {
-                        let parsed = self.parsedOutput
-                        if parsed.count > spokenLength {
-                            let newText = String(parsed.dropFirst(spokenLength))
-                            let trimmedText = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmedText.isEmpty {
-                                speak(transcript: trimmedText)
-                            }
-                            spokenLength = parsed.count
+                    switch result.status {
+                    case .filteredByGuard:
+                        self.rawOutput = result.text
+                    case .modelError:
+                        self.rawOutput = "Oops! Nova had a problem: \(result.error?.localizedDescription ?? "unknown error")"
+                    case .success:
+                      let parsed = self.parsedOutput
+                       if parsed.count > spokenLength {
+                         let newText = String(parsed.dropFirst(spokenLength))
+                         let trimmedText = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                         if !trimmedText.isEmpty {
+                             speak(transcript: trimmedText)
+                          }
+                          spokenLength = parsed.count
                         }
+                        break
                     }
                 }
             }
