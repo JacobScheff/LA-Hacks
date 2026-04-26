@@ -24,8 +24,9 @@ struct RAGChunk {
 }
 
 /// A single conversation turn stored in history for multi-turn context.
-struct ChatMessage {
+struct ChatMessage: Identifiable {
     enum Role { case user, assistant }
+    let id = UUID()
     let role: Role
     let content: String
 }
