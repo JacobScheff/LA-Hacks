@@ -711,9 +711,17 @@ struct NovaAITab: View {
         synthesizer.stopSpeaking(at: .immediate)
         
         let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
-        
-        runModel(
-            prompt: completePrompt,
+
+        let context = PipelineContext(
+            activeConstellationID: nil,
+            activeStarID: nil,
+            studentName: "Explorer",
+            history: []
+        )
+
+        RAGPipeline.run(
+            userQuery: userPrompt,
+            context: context,
             onDownload: { progress in
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
@@ -736,7 +744,7 @@ struct NovaAITab: View {
                     }
                 }
             },
-            onComplete: { error in
+            onComplete: { result in
                 DispatchQueue.main.async {
                     self.isProcessing = false
                     if let error = error {
