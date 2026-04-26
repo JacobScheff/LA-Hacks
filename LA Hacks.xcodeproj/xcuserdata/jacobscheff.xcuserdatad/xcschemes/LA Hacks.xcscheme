@@ -54,7 +54,7 @@
       <EnvironmentVariables>
          <EnvironmentVariable
             key = "gemmaApiKey"
-            value = "AIzaSyC67rGgjNQ18i5pO-NFURL4hbHBF94EE70"
+            value = "AIzaSyAsOJldXK3aLPu-xfN6HM3dPT0UJGMh1ac"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
