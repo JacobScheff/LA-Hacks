@@ -719,8 +719,8 @@ struct NovaAITab: View {
             onDownload: { progress in
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
-            onStream: { token in
-                DispatchQueue.main.async { self.rawOutput += token }
+            onStream: { currentText in
+                DispatchQueue.main.async { self.rawOutput = currentText }
             },
             onComplete: { result in
                 DispatchQueue.main.async {

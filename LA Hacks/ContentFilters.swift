@@ -235,29 +235,7 @@ struct OutputFilterResult {
 // MARK: - OutputContentFilter
 
 /// Stateless output guard for the Galaxy Tutor RAG pipeline.
-///
-/// Usage inside `RAGPipeline.run()` — wrap `onStream` accumulator:
-/// ```swift
-/// var buffer = ""
-/// RAGPipeline.run(userQuery: effectiveQuery, context: context,
-///     onDownload: onDownload,
-///     onStream: { token in
-///         buffer += token
-///         onStream(token)          // stream raw tokens to UI for live display
-///     },
-///     onComplete: { error in
-///         let filtered = OutputContentFilter.evaluate(response: buffer, context: context)
-///         // If the output was rewritten/replaced, notify the UI to swap the text
-///         let finalText = filtered.deliverableText
-///         onComplete(PipelineResult(
-///             text: finalText,
-///             status: filtered.verdict == .pass ? .success : .filteredByGuard,
-///             ragChunksUsed: chunks,
-///             error: error
-///         ))
-///     }
-/// )
-/// ```
+
 enum OutputContentFilter {
 
     // MARK: - Fallback Responses
@@ -478,105 +456,5 @@ enum OutputContentFilter {
         }
 
         return nil
-    }
-}
-
-// MARK: - Convenience Extension on RAGPipeline
-
-extension RAGPipeline {
-
-    /// Drop-in replacement for `run()` that adds both the input and output content guards.
-    ///
-    /// - The input guard runs synchronously before retrieval.
-    /// - The output guard runs after the full response has been streamed.
-    /// - `onStream` still fires for every token so the UI can show live typing.
-    ///   If the output guard rewrites the response, the UI should replace the
-    ///   streamed text with `PipelineResult.text` in the `onComplete` callback.
-    static func runWithFilter(
-        userQuery: String,
-        context: PipelineContext,
-        onDownload: @escaping (Float) -> Void,
-        onStream: @escaping (String) -> Void,
-        onComplete: @escaping (PipelineResult) -> Void
-    ) {
-        // ── INPUT GUARD ──────────────────────────────────────────────────────
-        let inputResult = InputContentFilter.evaluate(query: userQuery, context: context)
-
-        switch inputResult.verdict {
-        case .blocked:
-            // Short-circuit — never call the model
-            onComplete(PipelineResult(
-                text: inputResult.reason,
-                status: .filteredByGuard,
-                ragChunksUsed: [],
-                error: nil
-            ))
-            return
-
-        case .redirect:
-            // Use the sanitized query downstream
-            let safeQuery = inputResult.sanitizedQuery ?? userQuery
-            runWithOutputGuard(
-                userQuery: safeQuery,
-                context: context,
-                onDownload: onDownload,
-                onStream: onStream,
-                onComplete: onComplete
-            )
-
-        case .pass:
-            runWithOutputGuard(
-                userQuery: userQuery,
-                context: context,
-                onDownload: onDownload,
-                onStream: onStream,
-                onComplete: onComplete
-            )
-        }
-    }
-
-    // MARK: - Private Helpers
-
-    private static func runWithOutputGuard(
-        userQuery: String,
-        context: PipelineContext,
-        onDownload: @escaping (Float) -> Void,
-        onStream: @escaping (String) -> Void,
-        onComplete: @escaping (PipelineResult) -> Void
-    ) {
-        var streamBuffer = ""
-        let chunks = RAGRetriever.retrieve(query: userQuery, context: context)
-
-        run(
-            userQuery: userQuery,
-            context: context,
-            onDownload: onDownload,
-            onStream: { token in
-                streamBuffer += token
-                onStream(token) // pass through to UI for live display
-            },
-            onComplete: { baseResult in
-                // ── OUTPUT GUARD ─────────────────────────────────────────────
-                let outputResult = OutputContentFilter.evaluate(
-                    response: streamBuffer,
-                    context: context
-                )
-
-                let finalStatus: PipelineResult.Status
-                switch outputResult.verdict {
-                case .pass:
-                    finalStatus = baseResult.error == nil ? .success : .modelError
-                case .rewritten, .replaced:
-                    finalStatus = .filteredByGuard
-                }
-
-                onComplete(PipelineResult(
-                    text: outputResult.deliverableText,
-                    status: finalStatus,
-                    ragChunksUsed: chunks,
-                    error: baseResult.error
-                ))
-            }
-        )
     }
 }

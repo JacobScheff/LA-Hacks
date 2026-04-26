@@ -254,9 +254,9 @@ enum RAGPipeline {
         runModel(
             prompt: fullPrompt,
             onDownload: onDownload,
-            onStream: { token in
-                streamBuffer += token
-                onStream(token) // pass tokens through so the UI still shows live typing
+            onStream: { currentText in
+                streamBuffer = currentText
+                onStream(currentText)
             },
             onComplete: { error in
                 // 6. OUTPUT GUARD — runs on the fully assembled response
