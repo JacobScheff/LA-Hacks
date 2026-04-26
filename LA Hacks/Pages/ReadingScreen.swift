@@ -95,7 +95,10 @@ struct ReadingScreen: View {
 
                 // Center: Nova with magnifier
                 ZStack {
-                    Text("🦊").font(.system(size: 80))
+                    Image("Nova Image")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 96, height: 96)
                     Text("🔍")
                         .font(.system(size: 40))
                         .offset(x: 28, y: 30 + CGFloat(sin(t * 1.8)) * 4)
