@@ -19,6 +19,16 @@ struct ContentView: View {
             Onboard()
         } else {
             LearningGalaxyView()
+                .onAppear {
+                    do {
+                        // Initialize audio synthesizer
+                        let session = AVAudioSession.sharedInstance()
+                        try session.setCategory(.playback, mode: .default, options: [])
+                        try session.setActive(true)
+                    } catch {
+                        print("Failed to set audio session category: \(error)")
+                    }
+                }
         }
     }
 }

@@ -1,0 +1,621 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3A200C0D2F9C8E1C00652287 /* ZeticMLange in Frameworks */ = {isa = PBXBuildFile; productRef = 3A200C0C2F9C8E1C00652287 /* ZeticMLange */; };
+		3A200C102F9C8FD600652287 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 3A200C0F2F9C8FD600652287 /* Accelerate.framework */; };
+		51E5E5642F9DAA05007D8505 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 51E5E5252F9DA961007D8505 /* WidgetKit.framework */; };
+		51E5E5652F9DAA05007D8505 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 51E5E5272F9DA961007D8505 /* SwiftUI.framework */; };
+		51E5E5D72F9DAACD007D8505 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 51E5E5252F9DA961007D8505 /* WidgetKit.framework */; };
+		51E5E5E02F9DAD44007D8505 /* LA Hacks WidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 51E5E5632F9DAA05007D8505 /* LA Hacks WidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		51E5E5D92F9DACF3007D8505 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A200BF42F9C8A2700652287 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51E5E5622F9DAA05007D8505;
+			remoteInfo = "LA Hacks WidgetExtension";
+		};
+		51E5E5DC2F9DACF8007D8505 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A200BF42F9C8A2700652287 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51E5E5622F9DAA05007D8505;
+			remoteInfo = "LA Hacks WidgetExtension";
+		};
+		51E5E5DE2F9DAD02007D8505 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A200BF42F9C8A2700652287 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51E5E5622F9DAA05007D8505;
+			remoteInfo = "LA Hacks WidgetExtension";
+		};
+		51E5E5E12F9DAD44007D8505 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A200BF42F9C8A2700652287 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51E5E5622F9DAA05007D8505;
+			remoteInfo = "LA Hacks WidgetExtension";
+		};
+		51E5E5E42F9DAD4F007D8505 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 3A200BF42F9C8A2700652287 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 51E5E5622F9DAA05007D8505;
+			remoteInfo = "LA Hacks WidgetExtension";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		51E5E5E32F9DAD44007D8505 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				51E5E5E02F9DAD44007D8505 /* LA Hacks WidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		3A200BFC2F9C8A2700652287 /* LA Hacks.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LA Hacks.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		3A200C0F2F9C8FD600652287 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
+		51E5E5252F9DA961007D8505 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		51E5E5272F9DA961007D8505 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		51E5E5632F9DAA05007D8505 /* LA Hacks WidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "LA Hacks WidgetExtension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		51E5E5782F9DAA33007D8505 /* LA Hacks WidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "LA Hacks WidgetExtension.entitlements"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		51E5E5742F9DAA06007D8505 /* Exceptions for "LA Hacks Widget" folder in "LA Hacks WidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		3A200BFE2F9C8A2700652287 /* LA Hacks */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "LA Hacks";
+			sourceTree = "<group>";
+		};
+		51E5E5662F9DAA05007D8505 /* LA Hacks Widget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				51E5E5742F9DAA06007D8505 /* Exceptions for "LA Hacks Widget" folder in "LA Hacks WidgetExtension" target */,
+			);
+			path = "LA Hacks Widget";
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3A200BF92F9C8A2700652287 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3A200C102F9C8FD600652287 /* Accelerate.framework in Frameworks */,
+				3A200C0D2F9C8E1C00652287 /* ZeticMLange in Frameworks */,
+				51E5E5D72F9DAACD007D8505 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51E5E5602F9DAA05007D8505 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				51E5E5652F9DAA05007D8505 /* SwiftUI.framework in Frameworks */,
+				51E5E5642F9DAA05007D8505 /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		3A200BF32F9C8A2700652287 = {
+			isa = PBXGroup;
+			children = (
+				51E5E5782F9DAA33007D8505 /* LA Hacks WidgetExtension.entitlements */,
+				3A200BFE2F9C8A2700652287 /* LA Hacks */,
+				51E5E5662F9DAA05007D8505 /* LA Hacks Widget */,
+				3A200C0E2F9C8FD000652287 /* Frameworks */,
+				3A200BFD2F9C8A2700652287 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		3A200BFD2F9C8A2700652287 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3A200BFC2F9C8A2700652287 /* LA Hacks.app */,
+				51E5E5632F9DAA05007D8505 /* LA Hacks WidgetExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		3A200C0E2F9C8FD000652287 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				3A200C0F2F9C8FD600652287 /* Accelerate.framework */,
+				51E5E5252F9DA961007D8505 /* WidgetKit.framework */,
+				51E5E5272F9DA961007D8505 /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3A200BFB2F9C8A2700652287 /* LA Hacks */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 3A200C072F9C8A2800652287 /* Build configuration list for PBXNativeTarget "LA Hacks" */;
+			buildPhases = (
+				3A200BF82F9C8A2700652287 /* Sources */,
+				3A200BF92F9C8A2700652287 /* Frameworks */,
+				3A200BFA2F9C8A2700652287 /* Resources */,
+				51E5E5E32F9DAD44007D8505 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				51E5E5DA2F9DACF3007D8505 /* PBXTargetDependency */,
+				51E5E5DD2F9DACF8007D8505 /* PBXTargetDependency */,
+				51E5E5DF2F9DAD02007D8505 /* PBXTargetDependency */,
+				51E5E5E22F9DAD44007D8505 /* PBXTargetDependency */,
+				51E5E5E52F9DAD4F007D8505 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				3A200BFE2F9C8A2700652287 /* LA Hacks */,
+			);
+			name = "LA Hacks";
+			packageProductDependencies = (
+				3A200C0C2F9C8E1C00652287 /* ZeticMLange */,
+			);
+			productName = "LA Hacks";
+			productReference = 3A200BFC2F9C8A2700652287 /* LA Hacks.app */;
+			productType = "com.apple.product-type.application";
+		};
+		51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 51E5E5752F9DAA06007D8505 /* Build configuration list for PBXNativeTarget "LA Hacks WidgetExtension" */;
+			buildPhases = (
+				51E5E55F2F9DAA05007D8505 /* Sources */,
+				51E5E5602F9DAA05007D8505 /* Frameworks */,
+				51E5E5612F9DAA05007D8505 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				51E5E5662F9DAA05007D8505 /* LA Hacks Widget */,
+			);
+			name = "LA Hacks WidgetExtension";
+			packageProductDependencies = (
+			);
+			productName = "LA Hacks WidgetExtension";
+			productReference = 51E5E5632F9DAA05007D8505 /* LA Hacks WidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		3A200BF42F9C8A2700652287 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2640;
+				LastUpgradeCheck = 2640;
+				TargetAttributes = {
+					3A200BFB2F9C8A2700652287 = {
+						CreatedOnToolsVersion = 26.4.1;
+					};
+					51E5E5622F9DAA05007D8505 = {
+						CreatedOnToolsVersion = 26.4;
+					};
+				};
+			};
+			buildConfigurationList = 3A200BF72F9C8A2700652287 /* Build configuration list for PBXProject "LA Hacks" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 3A200BF32F9C8A2700652287;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				3A200C0B2F9C8E1C00652287 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 3A200BFD2F9C8A2700652287 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				3A200BFB2F9C8A2700652287 /* LA Hacks */,
+				51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3A200BFA2F9C8A2700652287 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51E5E5612F9DAA05007D8505 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		3A200BF82F9C8A2700652287 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51E5E55F2F9DAA05007D8505 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		51E5E5DA2F9DACF3007D8505 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+			targetProxy = 51E5E5D92F9DACF3007D8505 /* PBXContainerItemProxy */;
+		};
+		51E5E5DD2F9DACF8007D8505 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+			targetProxy = 51E5E5DC2F9DACF8007D8505 /* PBXContainerItemProxy */;
+		};
+		51E5E5DF2F9DAD02007D8505 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+			targetProxy = 51E5E5DE2F9DAD02007D8505 /* PBXContainerItemProxy */;
+		};
+		51E5E5E22F9DAD44007D8505 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+			targetProxy = 51E5E5E12F9DAD44007D8505 /* PBXContainerItemProxy */;
+		};
+		51E5E5E52F9DAD4F007D8505 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+			targetProxy = 51E5E5E42F9DAD4F007D8505 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		3A200C052F9C8A2800652287 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = TM388UHN9N;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		3A200C062F9C8A2800652287 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = TM388UHN9N;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		3A200C082F9C8A2800652287 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "LA Hacks/LA Hacks.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H4T45358S4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Knova;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Gavin-Huang.LA-Hacks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3A200C092F9C8A2800652287 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "LA Hacks/LA Hacks.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H4T45358S4;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = Knova;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Gavin-Huang.LA-Hacks";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		51E5E5762F9DAA06007D8505 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "LA Hacks WidgetExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H4T45358S4;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "LA Hacks Widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "LA Hacks Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Gavin-Huang.LA-Hacks.widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		51E5E5772F9DAA06007D8505 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = "LA Hacks WidgetExtension.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = H4T45358S4;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "LA Hacks Widget/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "LA Hacks Widget";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Gavin-Huang.LA-Hacks.widget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		3A200BF72F9C8A2700652287 /* Build configuration list for PBXProject "LA Hacks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A200C052F9C8A2800652287 /* Debug */,
+				3A200C062F9C8A2800652287 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		3A200C072F9C8A2800652287 /* Build configuration list for PBXNativeTarget "LA Hacks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3A200C082F9C8A2800652287 /* Debug */,
+				3A200C092F9C8A2800652287 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		51E5E5752F9DAA06007D8505 /* Build configuration list for PBXNativeTarget "LA Hacks WidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				51E5E5762F9DAA06007D8505 /* Debug */,
+				51E5E5772F9DAA06007D8505 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		3A200C0B2F9C8E1C00652287 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/zetic-ai/ZeticMLangeiOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3A200C0C2F9C8E1C00652287 /* ZeticMLange */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 3A200C0B2F9C8E1C00652287 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */;
+			productName = ZeticMLange;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 3A200BF42F9C8A2700652287 /* Project object */;
+}
