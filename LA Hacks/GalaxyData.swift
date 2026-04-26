@@ -95,9 +95,14 @@ struct StarNode: Identifiable, Hashable {
     let y: CGFloat
     /// True = locked until a connected neighbor reaches Twinkling mastery.
     let initiallyLocked: Bool
+    
+    var status: MasteryStage = .locked
+    
     let size: CGFloat
 
     var point: CGPoint { CGPoint(x: x, y: y) }
+    
+    var mastery: Double = 0.0
 }
 
 struct Edge: Hashable {

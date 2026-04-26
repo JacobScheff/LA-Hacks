@@ -70,7 +70,6 @@ struct Onboard: View {
             }
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: step)
-        .dismissesKeyboard()
         .preferredColorScheme(.dark)
     }
 

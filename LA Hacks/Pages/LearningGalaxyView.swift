@@ -140,14 +140,17 @@ struct LearningGalaxyView: View {
                 .transition(.opacity)
             }
             if let node = lessonNode {
-                let constellation = state.constellations.first { $0.nodes.contains { $0.id == node.id } }
-                let siblings = constellation?.nodes.filter { $0.id != node.id }.map(\.label) ?? []
+                let constellation = state.constellations.first { c in
+                    c.nodes.contains { $0.id == node.id }
+                }
                 LessonView(
                     node: node,
-                    constellationName: constellation?.name ?? "New Stars",
+                    constellationName: constellation?.name ?? "",
                     course: constellation?.course ?? "",
                     blurb: constellation?.blurb,
-                    siblingLabels: siblings,
+                    siblingLabels: constellation?.nodes
+                        .filter { $0.id != node.id }
+                        .map(\.label) ?? [],
                     onClose: { lessonNode = nil }
                 )
                 .transition(.opacity)

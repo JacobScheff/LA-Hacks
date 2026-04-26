@@ -4,33 +4,26 @@
 //
 //  Created by Yirui Song on 4/26/26.
 //
-//  Bridges LessonGenerator.swift → LessonContent so LessonView can load
-//  AI-generated lessons for any StarNode, grounded in uploaded curriculum.
+//  Bridges LessonGenerator.swift → LessonContent for any StarNode.
+//  Grounded in uploaded curriculum via CurriculumStore → MemoryStore.
 //
-//  How it connects the existing pieces:
+//  Compatible with updated GalaxyData:
+//    • StarNode has initiallyLocked (not status/mastery)
+//    • MasteryStage replaces StarStatus
+//    • UserSettings.shared.stage() computes live mastery
 //
-//    CurriculumStore  →  MemoryStore.allRAGWindows()
-//         ↓ top-3 windows most relevant to the star
-//    LessonContext.memory  (fed into every LessonGenerator prompt)
-//         ↓
-//    LessonGenerator.generateOpening()   →  LessonOpening
-//    LessonGenerator.generateProblem() × N  →  [LessonProblem]
-//         ↓
-//    LessonContent  (same type LessonView already uses)
-//         ↓
-//    DynamicLessonStore.cache[starID]  (so repeat taps are instant)
-//
-//  LessonView changes needed (see bottom of this file):
-//    1. Add `constellationName` + `course` lets
-//    2. Replace `private var lesson` computed property with @StateObject LessonLoader
-//    3. Wrap body in a load-state switch
+//  Files it depends on (unchanged):
+//    LessonGenerator.swift   — generateOpening / generateProblem / LessonContext
+//    ModelIntegration.swift  — RAGPipeline, PipelineContext
+//    CurriculumStore.swift   — MemoryStore.allRAGWindows()
+//    LessonView.swift        — LessonContent, LessonProblem, lessonFor()
 //
 
 import Foundation
 import Combine
 import NaturalLanguage
 
-// MARK: - Load state (drives LessonView UI)
+// MARK: - Load state
 
 enum LessonLoadState {
     case idle
@@ -53,22 +46,41 @@ final class DynamicLessonStore: ObservableObject {
 
     // MARK: - Route decision
 
-    /// Stars with hand-written cases in lessonFor() skip generation entirely.
+    /// Generated stars (gen- prefix) always use AI.
+    /// Static stars with full hand-written cases in lessonFor() skip generation.
     func needsGeneration(for node: StarNode) -> Bool {
         node.id.hasPrefix("gen-") || !hardcodedIDs.contains(node.id)
     }
 
+    /// Every star ID that has a real (non-default) case in lessonFor().
+    /// Matches the exhaustive switch in LessonView.swift.
     private let hardcodedIDs: Set<String> = [
-        "add","sub","mul","div","count","place","odd",
+        // Numbers
+        "count","place","add","sub","mul","div","odd",
+        // Fractions
         "half","frac","equiv","compare","addfrac","mixed","simplify","word",
+        // Geometry
         "tri","sq","circ","poly","sym","angle","area","vol",
+        // Time & Money
         "clock","min","cal","elapsed","rasalas","algenubi","coins","change","dollar",
+        // Reading
         "phon","sight","flu","main","detail","infer","theme",
+        // Writing
         "caps","noun","sent","adj","para","story","opin","edit",
-        "living","plant","animal","habitat","food","cycle","eco",
-        "sun","season","weather","water","rocks","planet",
-        "ancient","rastaban","maps","nu","native","explor","colony","rev",
+        // Life Science
+        "living","plant","animal","habitat","food","cycle","eco","photo","zeta","shaula","lesath",
+        // Earth & Space
+        "sun","season","weather","water","rocks","planet","gravity","galaxy",
+        // History
+        "ancient","rastaban","maps","nu","native","explor","colony","rev","gov","civil","tail",
     ]
+
+    // MARK: - Static lesson passthrough
+
+    /// Calls through to LessonView.swift's top-level lessonFor() for hardcoded stars.
+    static func staticLesson(for node: StarNode) -> LessonContent {
+        lessonFor(node: node)
+    }
 
     // MARK: - Load (called by LessonLoader)
 
@@ -86,12 +98,12 @@ final class DynamicLessonStore: ObservableObject {
             onState(.ready(cached)); return
         }
 
-        // 2. Hardcoded static lesson — no generation
+        // 2. Hardcoded static lesson — no generation needed
         if !needsGeneration(for: node) {
             onState(.ready(DynamicLessonStore.staticLesson(for: node))); return
         }
 
-        // 3. Deduplicate in-flight
+        // 3. Deduplicate in-flight requests
         guard !inFlight.contains(node.id) else {
             pollCache(starID: node.id, onState: onState); return
         }
@@ -99,7 +111,6 @@ final class DynamicLessonStore: ObservableObject {
         inFlight.insert(node.id)
         onState(.generatingOpening)
 
-        // Build LessonContext — key step: inject curriculum RAG windows as memory
         let ctx = buildContext(
             node: node,
             constellationName: constellationName,
@@ -109,7 +120,11 @@ final class DynamicLessonStore: ObservableObject {
         )
 
         Task {
-            let content = await generateFull(ctx: ctx, node: node, onState: onState, onStream: onStream)
+            let content = await generateFull(
+                ctx: ctx, node: node,
+                onState: onState,
+                onStream: onStream
+            )
             cache[node.id] = content
             inFlight.remove(node.id)
             onState(.ready(content))
@@ -118,17 +133,18 @@ final class DynamicLessonStore: ObservableObject {
 
     // MARK: - Pre-generation (fire-and-forget after UploadModal)
 
-    /// Call this right after buildGenerationResult() returns so lessons are
-    /// cached before the student taps a star.
+    /// Call right after buildGenerationResult() so lessons are cached before
+    /// the student taps a generated star.
     ///
-    /// In your UploadModal onGenerate closure:
-    ///
+    ///   // In your onGenerate closure:
     ///   let allNewNodes = outcome.addedNodes + (outcome.newConstellation?.nodes ?? [])
-    ///   let cname = outcome.newConstellation?.name ?? "New Stars"
-    ///   let ccourse = outcome.newConstellation?.course ?? ""
-    ///   DynamicLessonStore.shared.pregenerate(nodes: allNewNodes,
-    ///                                         constellationName: cname,
-    ///                                         course: ccourse)
+    ///   DynamicLessonStore.shared.pregenerate(
+    ///       nodes: allNewNodes,
+    ///       constellationName: outcome.newConstellation?.name ?? "New Stars",
+    ///       course: outcome.newConstellation?.course ?? "",
+    ///       blurb: outcome.newConstellation?.blurb,
+    ///       siblingLabels: allNewNodes.map(\.label)
+    ///   )
     func pregenerate(
         nodes: [StarNode],
         constellationName: String,
@@ -155,15 +171,15 @@ final class DynamicLessonStore: ObservableObject {
                     onStream: { _ in }
                 )
                 await MainActor.run {
-                    cache[node.id] = content
-                    inFlight.remove(node.id)
+                    self.cache[node.id] = content
+                    self.inFlight.remove(node.id)
                     print("[DynamicLessonStore] ✦ pre-generated '\(node.label)'")
                 }
             }
         }
     }
 
-    // MARK: - Context builder (key: curriculum RAG injection)
+    // MARK: - Context builder
 
     private func buildContext(
         node: StarNode,
@@ -172,7 +188,6 @@ final class DynamicLessonStore: ObservableObject {
         blurb: String?,
         siblingLabels: [String]
     ) -> LessonContext {
-        // Pull the top-3 RAG windows from CurriculumStore most relevant to this star
         let ragMemory = topCurriculumWindows(for: node, constellationName: constellationName)
 
         // BKT snapshot — mastery, forgetting, prereqs, misconceptions for this star.
@@ -180,19 +195,16 @@ final class DynamicLessonStore: ObservableObject {
         // misconception watchlist.
         let bktBlock = BKTPipeline.hints(for: node.id).promptSection()
 
-        // Combine uploaded curriculum passages with student memory from MemoryStore
         let studentMemory = MemoryStore.shared.contextForPrompt()
-        let combined: String = {
-            var parts: [String] = []
-            parts.append(bktBlock)
-            if !ragMemory.isEmpty {
-                parts.append("## 📚 Relevant Uploaded Curriculum\n\(ragMemory)")
-            }
-            if !studentMemory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                parts.append("## 🧠 Student History\n\(studentMemory)")
-            }
-            return parts.joined(separator: "\n\n")
-        }()
+
+        var parts: [String] = []
+        parts.append(bktBlock)
+        if !ragMemory.isEmpty {
+            parts.append("## 📚 Relevant Uploaded Curriculum\n\(ragMemory)")
+        }
+        if !studentMemory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append("## 🧠 Student History\n\(studentMemory)")
+        }
 
         return LessonContext(
             node: node,
@@ -200,12 +212,12 @@ final class DynamicLessonStore: ObservableObject {
             course: course,
             blurb: blurb,
             siblingLabels: siblingLabels,
-            memory: combined
+            memory: parts.joined(separator: "\n\n")
         )
     }
 
     /// Scores all curriculum windows against the star label + constellation name
-    /// and returns the top 3 as a single joined string for injection into memory.
+    /// and returns the top 3 joined as a single string for LessonContext.memory.
     private func topCurriculumWindows(for node: StarNode, constellationName: String) -> String {
         let windows = MemoryStore.shared.allRAGWindows()
         guard !windows.isEmpty else { return "" }
@@ -217,28 +229,27 @@ final class DynamicLessonStore: ObservableObject {
         tokenizer.enumerateTokens(in: query.startIndex..<query.endIndex) { r, _ in
             tokens.append(query[r].lowercased()); return true
         }
-        let stopwords: Set<String> = ["a","an","the","is","are","do","how","what","i","me","of","to","and","or","in","it"]
+
+        let stopwords: Set<String> = [
+            "a","an","the","is","are","do","how","what","i","me","of","to","and","or","in","it"
+        ]
         let filtered = tokens.filter { !stopwords.contains($0) && $0.count > 1 }
         guard !filtered.isEmpty else { return "" }
 
-        let scored = windows.map { w -> (String, Int) in
-            let lower = w.lowercased()
-            return (w, filtered.filter { lower.contains($0) }.count)
-        }
-        .filter { $0.1 > 0 }
-        .sorted { $0.1 > $1.1 }
-        .prefix(3)
-        .map(\.0)
-
-        return scored.joined(separator: "\n\n---\n\n")
+        return windows
+            .map { w -> (String, Int) in
+                let lower = w.lowercased()
+                return (w, filtered.filter { lower.contains($0) }.count)
+            }
+            .filter { $0.1 > 0 }
+            .sorted { $0.1 > $1.1 }
+            .prefix(3)
+            .map(\.0)
+            .joined(separator: "\n\n---\n\n")
     }
 
     // MARK: - Full generation sequence
 
-    /// Uses LessonGenerator's existing per-step API:
-    ///   generateOpening → LessonOpening
-    ///   generateProblem × LessonConfig.problemCount → [LessonProblem]
-    /// Then assembles into LessonContent.
     private func generateFull(
         ctx: LessonContext,
         node: StarNode,
@@ -247,15 +258,15 @@ final class DynamicLessonStore: ObservableObject {
     ) async -> LessonContent {
         let total = LessonConfig.problemCount
 
-        // ── Step 1: Opening (intro + example) ───────────────────────────────
+        // Step 1: Opening (intro + example)
         guard let opening = await LessonGenerator.generateOpening(ctx, onStream: onStream) else {
-            print("[DynamicLessonStore] ⚠️ opening generation failed for '\(node.label)'")
-            return fallback(for: node)
+            print("[DynamicLessonStore] ⚠️ opening failed for '\(node.label)'")
+            return Self.fallback(for: node)
         }
 
-        // ── Step 2: Problems (adaptive, conditioned on prior outcomes) ───────
+        // Step 2: Problems (adaptive per LessonGenerator)
         var problems: [LessonProblem] = []
-        var history: [PastProblemOutcome] = []   // empty until we have real outcomes
+        var history: [PastProblemOutcome] = []
 
         for i in 0..<total {
             await MainActor.run {
@@ -269,44 +280,53 @@ final class DynamicLessonStore: ObservableObject {
                 total: total,
                 onStream: onStream
             ) else {
-                print("[DynamicLessonStore] ⚠️ problem \(i+1) generation failed for '\(node.label)'")
-                // Pad with fallback problems rather than returning a short lesson
-                problems.append(contentsOf: fallback(for: node).problems.dropFirst(problems.count))
+                print("[DynamicLessonStore] ⚠️ problem \(i+1) failed for '\(node.label)'")
+                let padding = Self.fallback(for: node).problems.dropFirst(problems.count)
+                problems.append(contentsOf: padding)
                 break
             }
             problems.append(problem)
-            // History stays empty at generation time — no student answers yet.
-            // LessonGenerator's adaptive logic will kick in during live lesson
-            // replay if you later wire handleAnswer → history tracking.
         }
-
-        let safeProblems = problems.isEmpty ? fallback(for: node).problems : problems
 
         return LessonContent(
             intro: opening.intro,
             exampleQuestion: opening.exampleQuestion,
             exampleAnswer: opening.exampleAnswer,
             exampleViz: opening.exampleViz,
-            problems: safeProblems
+            problems: problems.isEmpty ? Self.fallback(for: node).problems : problems
         )
-    }
-
-    // MARK: - Static lesson passthrough
-
-    /// Calls through to LessonView's lessonFor() for hardcoded stars.
-    static func staticLesson(for node: StarNode) -> LessonContent {
-        lessonFor(node: node)
     }
 
     // MARK: - Fallback
 
     static func fallback(for node: StarNode) -> LessonContent {
-        fallbackLesson(for: node)
+        let label = node.label
+        let first = label.components(separatedBy: " ").first ?? label
+        let letterCount = String(first.filter(\.isLetter).count)
+        return LessonContent(
+            intro: "Let's explore \(label) \(node.emoji) together! I'll walk you through it step by step. 🚀",
+            exampleQuestion: "Can you think of one example of \(label) from real life?",
+            exampleAnswer: "Great thinking! Any answer relating to \(label) works.",
+            exampleViz: node.emoji,
+            problems: [
+                .mc("Which word best describes \(label)?",
+                    choices: ["Learning","Growing","Exploring","Building"],
+                    answer: "Learning", hint: "We're all here to learn!"),
+                .mc("Where would you look to learn more about \(label)?",
+                    choices: ["A book","Ask a friend","Try it out","All of these!"],
+                    answer: "All of these!", hint: "Great learners use every tool!"),
+                .input("Write one word you think of for '\(label)':",
+                       answer: first.lowercased(), hint: "First word that comes to mind."),
+                .input("How many letters in '\(first)'?",
+                       answer: letterCount, hint: "Count each letter one by one."),
+            ]
+        )
     }
 
-    private func fallback(for node: StarNode) -> LessonContent {
-        DynamicLessonStore.fallback(for: node)
-    }
+    // MARK: - Cache management
+
+    func clearCache(for starID: String) { cache.removeValue(forKey: starID) }
+    func clearAllGenerated() { cache.keys.filter { $0.hasPrefix("gen-") }.forEach { cache.removeValue(forKey: $0) } }
 
     // MARK: - Poll helper
 
@@ -321,33 +341,7 @@ final class DynamicLessonStore: ObservableObject {
     }
 }
 
-// MARK: - Fallback lesson (standalone so DynamicLessonStore.fallback() can call it)
-
-private func fallbackLesson(for node: StarNode) -> LessonContent {
-    let label = node.label
-    let first = label.components(separatedBy: " ").first ?? label
-    let letterCount = String(first.filter(\.isLetter).count)
-    return LessonContent(
-        intro: "Let's explore \(label) \(node.emoji) together! I'll walk you through it step by step. 🚀",
-        exampleQuestion: "Can you think of one example of \(label) from real life?",
-        exampleAnswer: "Great thinking! Any answer relating to \(label) works.",
-        exampleViz: node.emoji,
-        problems: [
-            .mc("Which word best describes \(label)?",
-                choices: ["Learning","Growing","Exploring","Building"],
-                answer: "Learning", hint: "We're all here to learn!"),
-            .mc("Where would you look to learn more about \(label)?",
-                choices: ["A book","Ask a friend","Try it out","All of these!"],
-                answer: "All of these!", hint: "Great learners use every tool!"),
-            .input("Write one word you think of for '\(label)':",
-                   answer: first.lowercased(), hint: "First word that comes to mind."),
-            .input("How many letters in '\(first)'?",
-                   answer: letterCount, hint: "Count each letter one by one."),
-        ]
-    )
-}
-
-// MARK: - LessonLoader (ObservableObject for LessonView)
+// MARK: - LessonLoader (ObservableObject used by LessonView via @StateObject)
 
 @MainActor
 final class LessonLoader: ObservableObject {
@@ -364,7 +358,7 @@ final class LessonLoader: ObservableObject {
     ) {
         guard case .idle = state else { return }
 
-        // Hardcoded stars skip the async path entirely — instant
+        // Static stars with full hand-written lessons skip async entirely
         if !DynamicLessonStore.shared.needsGeneration(for: node) {
             state = .ready(DynamicLessonStore.staticLesson(for: node))
             return
@@ -395,11 +389,11 @@ final class LessonLoader: ObservableObject {
 
     var progressLabel: String {
         switch state {
-        case .idle:                             return ""
-        case .generatingOpening:                return "Nova is preparing your lesson… ✨"
-        case .generatingProblems(let d, let t): return "Building questions… \(d)/\(t)"
-        case .ready:                            return ""
-        case .failed:                           return "Generation failed"
+        case .idle:                              return ""
+        case .generatingOpening:                 return "Nova is preparing your lesson… ✨"
+        case .generatingProblems(let d, let t):  return "Building questions… \(d)/\(t)"
+        case .ready:                             return ""
+        case .failed:                            return "Generation failed"
         }
     }
 }
