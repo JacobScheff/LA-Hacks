@@ -2,3 +2,4 @@
 *.xcconfig
 *.xcscheme
 xcuserdata/
+*.xcuserdatad/
