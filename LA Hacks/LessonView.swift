@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+var streamedResponse: String = ""
+
 // MARK: - Problem types (unchanged)
 
 enum ProblemKind {
@@ -407,6 +409,40 @@ struct LessonView: View {
             }
         }
     }
+    
+    private func sendNovaAI(userQuery: String, then: (() -> Void)? = nil) {
+        bottomInput = nil
+        withAnimation(.easeOut(duration: 0.18)) { isTyping = true }
+
+        let context = PipelineContext(
+            activeConstellationID: GalaxyData.nodesById[node.id]?.constellationId,
+            activeStarID: node.id,
+            studentName: "Explorer",
+            history: msgs.compactMap { m in
+                guard !m.isHint && !m.isStats else { return nil }
+                return ChatMessage(
+                    role: m.source == .student ? .user : .assistant,
+                    content: m.text
+                )
+            }
+        )
+
+        RAGPipeline.run(
+            userQuery: userQuery,
+            context: context,
+            onDownload: { _ in },
+            onStream: { _ in },
+            onComplete: { result in
+                DispatchQueue.main.async {
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        isTyping = false
+                        msgs.append(ChatMsg(source: .nova, text: result.text.isEmpty ? result.text : result.text))
+                    }
+                    then?()
+                }
+            }
+        )
+    }
 
     // MARK: - Lesson flow
 
@@ -489,11 +525,13 @@ struct LessonView: View {
 
         let next = idx + 1
         let done = next >= nProbs
-        let response = correct
-            ? randomCheer() + (streak >= 3 ? " 🔥 \(streak) in a row!" : "")
-            : "Not quite — the answer was \(problem.answer). \(randomEncourage())"
 
-        sendNova([response]) {
+        // Build a query that gives Nova full context to respond intelligently
+        let feedbackQuery = correct
+            ? "The student answered '\(val)' which is correct for the question: '\(problem.prompt)'. Give a short encouraging response\(streak >= 3 ? " and mention their \(streak)-answer streak" : "")."
+            : "The student answered '\(val)' but the correct answer is '\(problem.answer)' for the question: '\(problem.prompt)'. Gently correct them and give a short hint."
+
+        sendNovaAI(userQuery: feedbackQuery) {
             if done { self.celebrate() } else { self.askQ(next) }
         }
     }
