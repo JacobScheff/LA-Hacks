@@ -77,6 +77,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		3A5E3E592F9E24C3000B4F82 /* Exceptions for "LA Hacks" folder in "LA Hacks WidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Secrets.xcconfig,
+			);
+			target = 51E5E5622F9DAA05007D8505 /* LA Hacks WidgetExtension */;
+		};
 		51E5E5742F9DAA06007D8505 /* Exceptions for "LA Hacks Widget" folder in "LA Hacks WidgetExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -89,6 +96,9 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		3A200BFE2F9C8A2700652287 /* LA Hacks */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				3A5E3E592F9E24C3000B4F82 /* Exceptions for "LA Hacks" folder in "LA Hacks WidgetExtension" target */,
+			);
 			path = "LA Hacks";
 			sourceTree = "<group>";
 		};
@@ -315,6 +325,8 @@
 /* Begin XCBuildConfiguration section */
 		3A200C052F9C8A2800652287 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 3A200BFE2F9C8A2700652287 /* LA Hacks */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -379,6 +391,8 @@
 		};
 		3A200C062F9C8A2800652287 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 3A200BFE2F9C8A2700652287 /* LA Hacks */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -436,6 +450,8 @@
 		};
 		3A200C082F9C8A2800652287 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 3A200BFE2F9C8A2700652287 /* LA Hacks */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -445,6 +461,7 @@
 				DEVELOPMENT_TEAM = TM388UHN9N;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "LA-Hacks-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Knova;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow camera to take photos of documents and upload.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "";
@@ -473,6 +490,8 @@
 		};
 		3A200C092F9C8A2800652287 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 3A200BFE2F9C8A2700652287 /* LA Hacks */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -482,6 +501,7 @@
 				DEVELOPMENT_TEAM = TM388UHN9N;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "LA-Hacks-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Knova;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Allow camera to take photos of documents and upload.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "";
@@ -510,6 +530,8 @@
 		};
 		51E5E5762F9DAA06007D8505 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 3A200BFE2F9C8A2700652287 /* LA Hacks */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
@@ -541,6 +563,8 @@
 		};
 		51E5E5772F9DAA06007D8505 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 3A200BFE2F9C8A2700652287 /* LA Hacks */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;

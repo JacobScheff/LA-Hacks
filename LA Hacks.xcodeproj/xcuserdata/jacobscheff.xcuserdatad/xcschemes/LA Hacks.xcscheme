@@ -51,28 +51,6 @@
             ReferencedContainer = "container:LA Hacks.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "gemmaApiKey"
-            value = "AIzaSyAD5JdcmYxBQ6pHE2mm-AkGa0kB1mUwLBI"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "elevenLabsAPIKey"
-            value = "sk_9993133219a88915031454e242372bfc39abb4fca844c447"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "elevenLabsVoiceId"
-            value = "JBFqnCBsd6RMkjVDRZzb"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "personalToken"
-            value = "ztp_92c5cc5cc8024dc89ce028f7bd2aa11d"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

@@ -3,4 +3,5 @@
 *.xcscheme
 xcuserdata/
 *.xcuserdatad/
-LA Hacks.xcodeproj/xcuserdata/
+"LA Hacks.xcodeproj/"
+Secrets.xcconfig
