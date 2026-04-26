@@ -2,7 +2,7 @@
 //  CurriculumStore.swift
 //  LA Hacks
 //
-//  Created by Yirui Song on 4/26/26.
+//  Created by Yirui Song on 4/26/26
 //
 // Extends MemoryStore with a persistent curriculum layer.
 // DocumentScannerViewController produces CurriculumChunks via OCR;

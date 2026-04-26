@@ -319,6 +319,7 @@ struct SkyCanvas: View {
                     lctx.translateBy(x: n.x, y: chipY)
                     lctx.scaleBy(x: invS, y: invS)
                     let chipRect = CGRect(x: -approxW/2, y: -chipH/2, width: approxW, height: chipH)
+
                     lctx.fill(
                         Path(roundedRect: chipRect, cornerRadius: chipH/2),
                         with: .color(Color(hex: 0x0E1228, opacity: 0.82))
