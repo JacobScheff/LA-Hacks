@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AVFoundation
 
 // MARK: - Shared
 
@@ -281,7 +282,7 @@ struct PathsTab: View {
         let title: String
         let kicker: String
         let desc: String
-        let stars: [String]
+        let stars:[String]
         let progress: Double
         let minutes: Int
         let hue: Color
@@ -396,7 +397,7 @@ struct PathsTab: View {
                         .padding(.vertical, 10)
                         .background(
                             LinearGradient(
-                                colors: [p.hue, p.hue.opacity(0.7)],
+                                colors:[p.hue, p.hue.opacity(0.7)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -484,7 +485,7 @@ struct NovaAITab: View {
         var text = rawOutput
         
         // Strip out complete thought blocks
-        while let startRange = text.range(of: "<|channel>thought") {
+        while let startRange = text.range(of: "<|channel>") {
             if let endRange = text.range(of: "<channel|>", range: startRange.upperBound..<text.endIndex) {
                 text.removeSubrange(startRange.lowerBound..<endRange.upperBound)
             } else {
@@ -495,7 +496,7 @@ struct NovaAITab: View {
         }
         
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let thoughtToken = "<|channel>thought"
+        let thoughtToken = "<|channel>"
         
         // Hide partial streams at the very beginning
         if thoughtToken.hasPrefix(trimmed) {
@@ -511,7 +512,7 @@ struct NovaAITab: View {
         var text = rawOutput
         
         // Check for an unclosed thought block
-        while let startRange = text.range(of: "<|channel>thought") {
+        while let startRange = text.range(of: "<|channel>") {
             if let endRange = text.range(of: "<channel|>", range: startRange.upperBound..<text.endIndex) {
                 text.removeSubrange(startRange.lowerBound..<endRange.upperBound)
             } else {
@@ -520,7 +521,7 @@ struct NovaAITab: View {
         }
         
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let thoughtToken = "<|channel>thought"
+        let thoughtToken = "<|channel>"
         
         // Catch initial streaming of the token
         if trimmed.isEmpty || thoughtToken.hasPrefix(trimmed) {
@@ -706,21 +707,50 @@ struct NovaAITab: View {
         rawOutput = ""
         downloadProgress = 0.0
         
+        var spokenLength = 0
+        synthesizer.stopSpeaking(at: .immediate)
+        
         let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
-
+        
         runModel(
             prompt: completePrompt,
             onDownload: { progress in
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
             onStream: { currentText in
-                DispatchQueue.main.async { self.rawOutput = currentText }
+                DispatchQueue.main.async {
+                    self.rawOutput = currentText
+                    let parsed = self.parsedOutput
+                    if parsed.count > spokenLength {
+                        let newText = String(parsed.dropFirst(spokenLength))
+                        let delimiters = CharacterSet(charactersIn: ".?!\n,:;")
+                        if let range = newText.rangeOfCharacter(from: delimiters, options: .backwards) {
+                            let splitIndex = range.upperBound
+                            let textToSpeak = String(newText[..<splitIndex])
+                            let trimmedText = textToSpeak.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmedText.isEmpty {
+                                speak(transcript: trimmedText)
+                            }
+                            spokenLength += textToSpeak.count
+                        }
+                    }
+                }
             },
             onComplete: { error in
                 DispatchQueue.main.async {
                     self.isProcessing = false
                     if let error = error {
                         self.rawOutput = "Oops! Nova had a problem: \(error.localizedDescription)"
+                    } else {
+                        let parsed = self.parsedOutput
+                        if parsed.count > spokenLength {
+                            let newText = String(parsed.dropFirst(spokenLength))
+                            let trimmedText = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmedText.isEmpty {
+                                speak(transcript: trimmedText)
+                            }
+                            spokenLength = parsed.count
+                        }
                     }
                 }
             }
@@ -1197,7 +1227,7 @@ struct YouTab: View {
                             colors:[c1.opacity(0.80), c2.opacity(0.50)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                         : AnyShapeStyle(Color.white.opacity(0.10)),
-                    style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ? [] : [4, 3])
+                    style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ?[] : [4, 3])
                 )
         )
         .shadow(color: s.unlocked ? c1.opacity(0.38) : .clear, radius: 12, x: 0, y: 4)
@@ -1381,7 +1411,7 @@ struct SettingsTab: View {
                                     .background(
                                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                                             .fill(userSettings.avatar == a
-                                                  ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0x5EE7FF, opacity: 0.3), Color(hex: 0xA78BFA, opacity: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                  ? AnyShapeStyle(LinearGradient(colors:[Color(hex: 0x5EE7FF, opacity: 0.3), Color(hex: 0xA78BFA, opacity: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                                   : AnyShapeStyle(Color.white.opacity(0.06)))
                                     )
                                     .overlay(
@@ -1424,7 +1454,7 @@ struct SettingsTab: View {
                                 .foregroundColor(Color(hex: 0x1A0B40))
                                 .padding(.horizontal, 14).padding(.vertical, 10)
                                 .background(
-                                    LinearGradient(colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing)
+                                    LinearGradient(colors:[Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
@@ -1468,7 +1498,7 @@ struct SettingsTab: View {
                                 .padding(.horizontal, 14).padding(.vertical, 8)
                                 .background(
                                     Capsule().fill(userSettings.grade == g
-                                                   ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFE066), Color(hex: 0xFF8AD8)], startPoint: .leading, endPoint: .trailing))
+                                                   ? AnyShapeStyle(LinearGradient(colors:[Color(hex: 0xFFE066), Color(hex: 0xFF8AD8)], startPoint: .leading, endPoint: .trailing))
                                                    : AnyShapeStyle(Color.white.opacity(0.07)))
                                 )
                                 .shadow(color: userSettings.grade == g ? Color(hex: 0xFFE066, opacity: 0.35) : .clear, radius: 8)
@@ -1515,7 +1545,7 @@ struct SettingsTab: View {
                                         .padding(.horizontal, 14).padding(.vertical, 8)
                                         .background(
                                             Capsule().fill(notifTime == t
-                                                           ? AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFF8AD8), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing))
+                                                           ? AnyShapeStyle(LinearGradient(colors:[Color(hex: 0xFF8AD8), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing))
                                                            : AnyShapeStyle(Color.white.opacity(0.07)))
                                         )
                                         .animation(.easeOut(duration: 0.15), value: notifTime == t)
