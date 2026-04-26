@@ -442,21 +442,24 @@
 				CODE_SIGN_ENTITLEMENTS = "LA Hacks/LA Hacks.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TM388UHN9N;
+				DEVELOPMENT_TEAM = 923UW3NU2B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Knova;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Allow camera to take photos of documents and upload.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.Jacob-Scheff.LA-Hacks";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Yirui-Song.LA-Hacks";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -476,21 +479,24 @@
 				CODE_SIGN_ENTITLEMENTS = "LA Hacks/LA Hacks.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TM388UHN9N;
+				DEVELOPMENT_TEAM = 923UW3NU2B;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Knova;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Allow camera to take photos of documents and upload.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.Jacob-Scheff.LA-Hacks";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Yirui-Song.LA-Hacks";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -510,7 +516,7 @@
 				CODE_SIGN_ENTITLEMENTS = "LA Hacks WidgetExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TM388UHN9N;
+				DEVELOPMENT_TEAM = 923UW3NU2B;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "LA Hacks Widget/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "LA Hacks Widget";
@@ -521,7 +527,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.Jacob-Scheff.LA-Hacks.widget";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Yirui-Song.LA-Hacks.widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -541,7 +547,7 @@
 				CODE_SIGN_ENTITLEMENTS = "LA Hacks WidgetExtension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = TM388UHN9N;
+				DEVELOPMENT_TEAM = 923UW3NU2B;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "LA Hacks Widget/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "LA Hacks Widget";
@@ -552,7 +558,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.Jacob-Scheff.LA-Hacks.widget";
+				PRODUCT_BUNDLE_IDENTIFIER = "com.Yirui-Song.LA-Hacks.widget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
