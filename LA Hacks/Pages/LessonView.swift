@@ -33,10 +33,10 @@ struct LessonProblem: Identifiable {
         LessonProblem(kind: .multipleChoice, prompt: prompt, hint: hint, answer: answer, choices: choices, slices: 0, target: 0)
     }
     static func input(_ prompt: String, answer: String, hint: String) -> LessonProblem {
-        LessonProblem(kind: .input, prompt: prompt, hint: hint, answer: answer, choices: [], slices: 0, target: 0)
+        LessonProblem(kind: .input, prompt: prompt, hint: hint, answer: answer, choices:[], slices: 0, target: 0)
     }
     static func pizza(_ prompt: String, slices: Int, target: Int, hint: String) -> LessonProblem {
-        LessonProblem(kind: .pizza, prompt: prompt, hint: hint, answer: "correct", choices: [], slices: slices, target: target)
+        LessonProblem(kind: .pizza, prompt: prompt, hint: hint, answer: "correct", choices:[], slices: slices, target: target)
     }
 }
 
@@ -58,10 +58,10 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "If you have 3 star-rocks and find 4 more, how many do you have?",
             exampleAnswer: "7",
             exampleViz: "⭐⭐⭐ + ⭐⭐⭐⭐ = ?",
-            problems: [
-                .mc("A space dog has 5 bones and digs up 3 more. How many bones total?", choices: ["6","7","8","9"], answer: "8", hint: "Count up from 5: 6, 7, 8."),
+            problems:[
+                .mc("A space dog has 5 bones and digs up 3 more. How many bones total?", choices:["6","7","8","9"], answer: "8", hint: "Count up from 5: 6, 7, 8."),
                 .input("12 + 7 = ?", answer: "19", hint: "Start at 12 and hop forward 7 times."),
-                .mc("Which one equals 14?", choices: ["9 + 4","7 + 7","5 + 10","8 + 8"], answer: "7 + 7", hint: "Doubles can help! What is 7 doubled?"),
+                .mc("Which one equals 14?", choices:["9 + 4","7 + 7","5 + 10","8 + 8"], answer: "7 + 7", hint: "Doubles can help! What is 7 doubled?"),
                 .input("25 + 36 = ?", answer: "61", hint: "Add the tens (20+30=50), then the ones (5+6=11). 50+11=?"),
             ]
         )
@@ -71,10 +71,10 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "3 × 4 = ? (think: 4 + 4 + 4)",
             exampleAnswer: "12",
             exampleViz: "⭐⭐⭐⭐  ⭐⭐⭐⭐  ⭐⭐⭐⭐",
-            problems: [
+            problems:[
                 .mc("6 × 7 = ?", choices: ["36","42","48","49"], answer: "42", hint: "6 × 7 is the same as 7 × 6. Try counting by 6s."),
                 .input("8 × 9 = ?", answer: "72", hint: "9s trick: tens digit is one less than 8, so 7_. Digits add to 9 → 72!"),
-                .mc("5 spiders, each with 8 legs. How many legs total?", choices: ["35","40","45","48"], answer: "40", hint: "Count by 5s: 8, 16, 24, 32, 40."),
+                .mc("5 spiders, each with 8 legs. How many legs total?", choices:["35","40","45","48"], answer: "40", hint: "Count by 5s: 8, 16, 24, 32, 40."),
                 .input("12 × 5 = ?", answer: "60", hint: "Half of 12 × 10. What is 12 × 10?"),
             ]
         )
@@ -84,9 +84,9 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "Which fraction means 1 out of 2 equal parts?",
             exampleAnswer: "½",
             exampleViz: "🍕",
-            problems: [
+            problems:[
                 .pizza("Tap to show ½ of the pizza.", slices: 2, target: 1, hint: "Half means 1 of 2 equal pieces."),
-                .mc("Which is bigger, ½ or ¼?", choices: ["½","¼","They are equal"], answer: "½", hint: "More slices cut = smaller each slice!"),
+                .mc("Which is bigger, ½ or ¼?", choices:["½","¼","They are equal"], answer: "½", hint: "More slices cut = smaller each slice!"),
                 .pizza("Tap to show ¾ of the pizza.", slices: 4, target: 3, hint: "¾ = 3 out of 4 equal pieces."),
             ]
         )
@@ -96,9 +96,9 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "1/4 + 2/4 = ?",
             exampleAnswer: "3/4 (add tops: 1+2=3, keep bottom: 4)",
             exampleViz: "🍕 1/4 + 🍕🍕 2/4",
-            problems: [
+            problems:[
                 .mc("2/5 + 1/5 = ?", choices: ["3/10","3/5","2/5","1/5"], answer: "3/5", hint: "Tops add: 2+1=3. Bottom stays 5."),
-                .mc("3/8 + 4/8 = ?", choices: ["7/16","7/8","12/8","1/8"], answer: "7/8", hint: "Add the tops (3+4), keep the bottom (8)."),
+                .mc("3/8 + 4/8 = ?", choices:["7/16","7/8","12/8","1/8"], answer: "7/8", hint: "Add the tops (3+4), keep the bottom (8)."),
             ]
         )
     case "tri":
@@ -107,7 +107,7 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "How many sides on a triangle?",
             exampleAnswer: "3",
             exampleViz: "🔺",
-            problems: [
+            problems:[
                 .mc("How many corners (vertices) on a triangle?", choices: ["2","3","4","5"], answer: "3", hint: "Same as the number of sides!"),
                 .mc("Which shape is NOT a triangle?", choices: ["A yield sign shape","A square","A slice of pizza","A mountain outline"], answer: "A square", hint: "A square has 4 sides."),
             ]
@@ -118,8 +118,8 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "A 3×4 rectangle — how many squares fit inside?",
             exampleAnswer: "12 (3 × 4 = 12)",
             exampleViz: "3 rows × 4 cols",
-            problems: [
-                .mc("A 5 × 4 rug. What is the area in square units?", choices: ["9","18","20","24"], answer: "20", hint: "Multiply length × width."),
+            problems:[
+                .mc("A 5 × 4 rug. What is the area in square units?", choices:["9","18","20","24"], answer: "20", hint: "Multiply length × width."),
                 .input("A square with side length 6. Area = ?", answer: "36", hint: "6 × 6."),
             ]
         )
@@ -129,13 +129,13 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "A story about a lost puppy who finds a new family. What's the main idea?",
             exampleAnswer: "A lost puppy finds a new family",
             exampleViz: "🐶❤️🏠",
-            problems: [
+            problems:[
                 .mc("Rosa learns to ride a bike after many tries. Main idea?",
-                    choices: ["Rosa likes ice cream","Rosa learns to ride a bike with practice","Bikes have two wheels"],
+                    choices:["Rosa likes ice cream","Rosa learns to ride a bike with practice","Bikes have two wheels"],
                     answer: "Rosa learns to ride a bike with practice",
                     hint: "What is the WHOLE story really about?"),
                 .mc("A passage explains how bees make honey. The main idea is about…",
-                    choices: ["Flowers being pretty","How bees make honey","Bears liking honey"],
+                    choices:["Flowers being pretty","How bees make honey","Bears liking honey"],
                     answer: "How bees make honey", hint: "It's right there in the description!"),
             ]
         )
@@ -146,8 +146,8 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleAnswer: "The Arctic — cold, icy, perfect for polar bears!",
             exampleViz: "🐻‍❄️❄️",
             problems: [
-                .mc("A cactus lives where?", choices: ["Ocean","Desert","Forest","Pond"], answer: "Desert", hint: "Cacti love hot, dry, sandy places!"),
-                .mc("Which animal lives in a coral reef?", choices: ["Wolf","Camel","Clownfish","Penguin"], answer: "Clownfish", hint: "Think Finding Nemo!"),
+                .mc("A cactus lives where?", choices:["Ocean","Desert","Forest","Pond"], answer: "Desert", hint: "Cacti love hot, dry, sandy places!"),
+                .mc("Which animal lives in a coral reef?", choices:["Wolf","Camel","Clownfish","Penguin"], answer: "Clownfish", hint: "Think Finding Nemo!"),
             ]
         )
     default:
@@ -156,7 +156,7 @@ private func lessonFor(node: StarNode) -> LessonContent {
             exampleQuestion: "Tap ready when you're set to go!",
             exampleAnswer: "Let's do this!",
             exampleViz: node.emoji,
-            problems: [
+            problems:[
                 .mc("A warm-up question for \(node.label):", choices: ["Option A","Option B","Option C"], answer: "Option A", hint: "Trust your instincts!"),
             ]
         )
@@ -198,6 +198,7 @@ struct LessonView: View {
 
     @State private var msgs: [ChatMsg] = []
     @State private var isTyping = false
+    @State private var streamText: String = "" // For visual TTS text streaming
     @State private var bottomInput: BottomInputKind? = nil
     @State private var hearts = 3
     @State private var xpGained = 0
@@ -211,7 +212,7 @@ struct LessonView: View {
     @State private var outcomes: [PastProblemOutcome] = []
     @FocusState private var chatBreakFocused: Bool
 
-    @State private var stickerQueue: [StarStickerItem] = []
+    @State private var stickerQueue:[StarStickerItem] = []
     @State private var currentStickerToast: StarStickerItem? = nil
 
     enum Phase { case intro, example, practice, chatBreak, celebrate }
@@ -260,6 +261,8 @@ struct LessonView: View {
                         onAction: handleAction,
                         onAnswer: handleAnswer,
                         onHint: { prob in
+                            resetTTS()
+                            streamTTS(text: prob.hint, isFinal: true)
                             withAnimation(.easeOut(duration: 0.18)) {
                                 msgs.append(ChatMsg(source: .nova, text: prob.hint, isHint: true))
                             }
@@ -293,7 +296,10 @@ struct LessonView: View {
 
     private var chatHeader: some View {
         HStack(spacing: 10) {
-            Button(action: onClose) {
+            Button(action: {
+                resetTTS()
+                onClose()
+            }) {
                 Text("←")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.white.opacity(0.7))
@@ -359,7 +365,7 @@ struct LessonView: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.white.opacity(0.07))
                 Capsule()
-                    .fill(LinearGradient(colors: [pal.mid, Color(hex: 0xFFD044)], startPoint: .leading, endPoint: .trailing))
+                    .fill(LinearGradient(colors:[pal.mid, Color(hex: 0xFFD044)], startPoint: .leading, endPoint: .trailing))
                     .frame(width: g.size.width * max(0, CGFloat(progress)))
                     .shadow(color: pal.glow, radius: 4)
             }
@@ -382,7 +388,12 @@ struct LessonView: View {
                             ))
                     }
                     if isTyping {
-                        TypingBubble(pal: pal).id("typing")
+                        if streamText.isEmpty {
+                            TypingBubble(pal: pal).id("typing")
+                        } else {
+                            MsgBubble(msg: ChatMsg(source: .nova, text: streamText), pal: pal)
+                                .id("typing")
+                        }
                     }
                     Color.clear.frame(height: 6).id("__end")
                 }
@@ -400,6 +411,9 @@ struct LessonView: View {
             .onChange(of: isTyping) {
                 withAnimation { proxy.scrollTo("__end", anchor: .bottom) }
             }
+            .onChange(of: streamText) {
+                withAnimation { proxy.scrollTo("__end", anchor: .bottom) }
+            }
         }
     }
 
@@ -407,7 +421,7 @@ struct LessonView: View {
 
     private var stardust: some View {
         Canvas { ctx, sz in
-            for (px, py, pr): (Double, Double, Double) in [
+            for (px, py, pr): (Double, Double, Double) in[
                 (0.12, 0.18, 0.7), (0.88, 0.08, 0.5),
                 (0.42, 0.88, 0.5), (0.76, 0.72, 0.45),
                 (0.22, 0.55, 0.4), (0.60, 0.35, 0.35),
@@ -426,6 +440,12 @@ struct LessonView: View {
 
     private func sendNova(_ texts: [String], then: (() -> Void)? = nil) {
         bottomInput = nil
+        
+        // --- TTS logic ---
+        resetTTS()
+        let fullSpeech = texts.joined(separator: " ").replacingOccurrences(of: " · ", with: ". ")
+        streamTTS(text: fullSpeech, isFinal: true)
+        
         var delay: Double = 0
         for text in texts {
             let dur = min(0.35 + Double(text.count) * 0.018, 1.1)
@@ -453,6 +473,8 @@ struct LessonView: View {
     
     private func sendNovaAI(userQuery: String, then: (() -> Void)? = nil) {
         bottomInput = nil
+        streamText = ""
+        resetTTS()
         withAnimation(.easeOut(duration: 0.18)) { isTyping = true }
 
         let context = PipelineContext(
@@ -472,11 +494,16 @@ struct LessonView: View {
             userQuery: userQuery,
             context: context,
             onDownload: { _ in },
-            onStream: { _ in },
+            onStream: { currentText in
+                DispatchQueue.main.async {
+                    self.streamText = currentText
+                }
+            },
             onComplete: { result in
                 DispatchQueue.main.async {
                     withAnimation(.easeOut(duration: 0.15)) {
                         isTyping = false
+                        self.streamText = ""
                         msgs.append(ChatMsg(source: .nova, text: result.text.isEmpty ? result.text : result.text))
                     }
                     then?()
@@ -747,11 +774,9 @@ struct LessonView: View {
 
 // MARK: - Copy lines
 
-private func randomCheer() -> String {
-    ["You got it! ⭐","Stellar! 🚀","Nailed it! ✨","Bingo! 🎯","That's the one! 💫","Cosmic! Keep going!","Wow, nice work! 🌟"].randomElement() ?? "Nice!"
+private func randomCheer() -> String {["You got it! ⭐","Stellar! 🚀","Nailed it! ✨","Bingo! 🎯","That's the one! 💫","Cosmic! Keep going!","Wow, nice work! 🌟"].randomElement() ?? "Nice!"
 }
-private func randomEncourage() -> String {
-    ["No worries — let's keep going!","Every explorer gets it on the next try.","Mistakes are how we grow 🌱","Onwards and upwards!"].randomElement() ?? "Keep going!"
+private func randomEncourage() -> String {["No worries — let's keep going!","Every explorer gets it on the next try.","Mistakes are how we grow 🌱","Onwards and upwards!"].randomElement() ?? "Keep going!"
 }
 
 // MARK: - Nova avatar
@@ -821,14 +846,14 @@ private struct MsgBubble: View {
                     .fill(
                         msg.answerResult == .correct
                             ? AnyShapeStyle(LinearGradient(
-                                colors: [Color(hex: 0x34C759), Color(hex: 0x30B354)],
+                                colors:[Color(hex: 0x34C759), Color(hex: 0x30B354)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing))
                             : msg.answerResult == .incorrect
                             ? AnyShapeStyle(LinearGradient(
-                                colors: [Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
+                                colors:[Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing))
                             : AnyShapeStyle(LinearGradient(
-                                colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
+                                colors:[Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing))
                     )
             )
@@ -844,7 +869,7 @@ private struct MsgBubble: View {
     private var statsBubble: some View {
         HStack(alignment: .bottom, spacing: 8) {
             NovaAvatarView(size: 26, pal: pal)
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+            LazyVGrid(columns:[GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
                 statTile("✨", label: "XP earned",   val: "+\(msg.statsXP)",   c: Color(hex: 0xFFE066))
                 statTile("❤️", label: "Hearts left", val: "\(msg.statsHearts)/3", c: Color(hex: 0xFF8AD8))
                 statTile("💡", label: "Hints used",  val: "\(msg.statsHints)", c: Color(hex: 0x5EE7FF))
@@ -969,7 +994,7 @@ private struct LessonInputArea: View {
 // MARK: - MC choices
 
 private struct MCChoicesView: View {
-    let choices: [String]
+    let choices:[String]
     let problem: LessonProblem
     let idx: Int
     let pal: StarPalette
@@ -1005,7 +1030,7 @@ private struct MCChoicesView: View {
                     .background(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(isTapped
-                                  ? AnyShapeStyle(LinearGradient(colors: [pal.mid.opacity(0.8), pal.halo.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                  ? AnyShapeStyle(LinearGradient(colors:[pal.mid.opacity(0.8), pal.halo.opacity(0.6)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                   : AnyShapeStyle(Color.white.opacity(0.055)))
                     )
                     .overlay(
