@@ -1,9 +1,5 @@
-//
-//  UploadModal.swift
-//  LA Hacks
-//
-//  Star Hop! upload-doc → grow-new-stars flow — pick screen.
-//  Ported from project/galaxy-upload.jsx.
+// UploadModal.swift
+// LA Hacks
 //
 // Floating centered popup (not a bottom sheet).
 // • Two tabs: 📷 Scan  |  📝 Paste
@@ -138,6 +134,7 @@ private func makeNewClusterPositions(count: Int, cx: CGFloat, cy: CGFloat) -> [(
 
 struct GenerationResult {
     let isNew: Bool
+    let constellationID: String
     let constellationName: String
     let emoji: String
     let addedTopics: [(label: String, emoji: String)]
@@ -166,11 +163,11 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
                 id: "gen-\(now)-\(i)",
                 label: t.label, star: "New ✨", emoji: t.emoji,
                 x: positions[i].0, y: positions[i].1,
-                initiallyLocked: false, size: 5
+                initiallyLocked: false, status: .gap, size: 5, mastery: 0
             )
         }
         return GenerationOutcome(
-            result: GenerationResult(isNew: false, constellationName: target.name, emoji: target.emoji,
+            result: GenerationResult(isNew: false, constellationID: target.id, constellationName: target.name, emoji: target.emoji,
                                      addedTopics: recipe.topics, neighborTopics: [],
                                      jumpTo: (baseX, baseY, 1.0)),
             targetConstellationId: target.id, addedNodes: addedNodes, newConstellation: nil
@@ -221,7 +218,7 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
         centroid: CGPoint(x: cx, y: cy), nodes: primary + neighbors, edges: edges
     )
     return GenerationOutcome(
-        result: GenerationResult(isNew: true, constellationName: recipe.newName ?? "New Skies",
+        result: GenerationResult(isNew: true, constellationID: newId, constellationName: recipe.newName ?? "New Skies",
                                  emoji: recipe.newEmoji ?? "✨", addedTopics: recipe.topics,
                                  neighborTopics: neighborTopics, jumpTo: (cx, cy, 0.9)),
         targetConstellationId: nil, addedNodes: [], newConstellation: newConstellation

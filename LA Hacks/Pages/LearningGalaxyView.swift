@@ -143,8 +143,17 @@ struct LearningGalaxyView: View {
                 .transition(.opacity)
             }
             if let node = lessonNode {
-                LessonView(node: node, onClose: { lessonNode = nil })
-                    .transition(.opacity)
+                let constellation = state.constellations.first { $0.nodes.contains { $0.id == node.id } }
+                let siblings = constellation?.nodes.filter { $0.id != node.id }.map(\.label) ?? []
+                LessonView(
+                    node: node,
+                    constellationName: constellation?.name ?? "New Stars",
+                    course: constellation?.course ?? "",
+                    blurb: constellation?.blurb,
+                    siblingLabels: siblings,
+                    onClose: { lessonNode = nil }
+                )
+                .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.3), value: trainingNode?.id)
@@ -175,8 +184,14 @@ struct LearningGalaxyView: View {
     static func makeSyntheticNode(label: String, emoji: String, initiallyLocked: Bool = false) -> StarNode {
         StarNode(
             id: "synthetic-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))",
-            label: label, star: nil, emoji: emoji,
-            x: 0, y: 0, initiallyLocked: initiallyLocked, size: 5
+            label: label,
+            constellationID: "synthetic",
+            star: nil,
+            emoji: emoji,
+            x: 0, y: 0,
+            status: status,
+            size: 5,
+            mastery: status == .mastered ? 1.0 : 0.4
         )
     }
 
