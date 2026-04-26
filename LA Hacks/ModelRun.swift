@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftUI
 import ZeticMLange
 import AVFoundation
 
@@ -26,6 +27,22 @@ func runModel(
     onStream: @escaping (String) -> Void,
     onComplete: @escaping (Error?) -> Void
 ) {
+    @AppStorage("onboarded")
+    var onboarded: Bool = false
+    
+    @AppStorage("isConnected")
+    var isConnected: Bool = false
+    
+    /// If the device is connected to wifi and the user is already onboarded (model is already downloaded and this call is not an attempt to download the local model), then use the Google Gemma API. Otherwise, run the device locally with Zetic AI.
+    
+    if isConnected {
+        print("Calling Model Run With Google Gemma API")
+        runModelCloud(prompt: prompt, onStream: onStream, onComplete: onComplete)
+        return
+    }
+    
+    print("Calling Model Run With Zetic AI")
+    
     Task.detached {
         do {
             // Initialize Model ONLY if it hasn't been created yet
