@@ -3,7 +3,7 @@
 //  LA Hacks
 //
 //  Me tab — profile, stats heatmap, sticker book entry, streaks.
-//  Extracted from GalaxyTabs.swift.
+//  All metrics are live from UserSettings.
 //
 
 import SwiftUI
@@ -13,21 +13,33 @@ import SwiftUI
 struct YouTab: View {
     @State private var showSettings = false
     @State private var showStickerBook = false
+    @State private var selectedHeatCell: HeatCellInfo? = nil
+    @State private var contentID = UUID()
     @Environment(UserSettings.self) var userSettings
-    
-    /// Deterministic 12 weeks × 7 days heatmap
-    private static let days: [Double] = {
-        var seed: UInt64 = 17
-        var out:[Double] = []
-        for _ in 0..<84 {
-            seed = (seed &* 9301 &+ 49297) % 233280
-            out.append(Double(seed) / 233280.0)
+
+    private struct HeatCellInfo: Equatable {
+        let date: Date
+        let xp: Int
+
+        var dateLabel: String {
+            let cal = Calendar.current
+            if cal.isDateInToday(date)     { return "Today" }
+            if cal.isDateInYesterday(date) { return "Yesterday" }
+            let f = DateFormatter()
+            f.dateFormat = "EEE, MMM d"
+            return f.string(from: date)
         }
-        return out
-    }()
-    
-    private var stickers: [StarStickerItem] { Array(StarStickerData.all.prefix(12)) }
-    
+        var isStudied: Bool { xp > 0 }
+        var isStarDay: Bool { xp >= 150 }
+    }
+
+    private var stickers: [StarStickerItem] {
+        Array(StarStickerData.items(
+            unlocked: userSettings.unlockedStickers,
+            dates: userSettings.stickerEarnedDates
+        ).prefix(12))
+    }
+
     private struct Metric: Identifiable {
         let id = UUID()
         let emoji: String
@@ -38,46 +50,55 @@ struct YouTab: View {
         let sub: String?
         let hue: Color
     }
-    private var earnedCount: Int { StarStickerData.unlockedCount }
-    private var totalStickerCount: Int { StarStickerData.all.count }
 
-    private struct Recent: Identifiable {
-        let id = UUID()
-        let emoji: String
-        let title: String
-        let sub: String
-        let hue: Color
+    private var earnedCount: Int { userSettings.unlockedStickers.count }
+    private var totalStickerCount: Int { StarStickerData.totalCount }
+
+    private var litCount: Int { userSettings.masteredStarsCount }
+    private var totalNonLockedStars: Int {
+        GalaxyData.constellations.flatMap { $0.nodes }.filter { !$0.initiallyLocked }.count
     }
-    private let recent: [Recent] = [
-        Recent(emoji: "⭐", title: "Lit up Inverse Operations",      sub: "2 hours ago · +60 XP",  hue: Color(hex: 0xFFE066)),
-        Recent(emoji: "😴", title: "Found a sleepy star: Volume",    sub: "Yesterday",              hue: Color(hex: 0x5EE7FF)),
-        Recent(emoji: "🎮", title: "Played Times Tables Speed",      sub: "2 days ago · 24 min",   hue: Color(hex: 0xFF8AD8)),
-        Recent(emoji: "🏅", title: "Unlocked Symmetry Star sticker", sub: "3 days ago",             hue: Color(hex: 0xA78BFA)),
-    ]
+    private var worldsStarted: Int {
+        GalaxyData.constellations.filter { c in
+            c.nodes.contains { userSettings.starMastery[$0.id] != nil }
+        }.count
+    }
+    private var totalWorlds: Int { GalaxyData.constellations.count }
+
     private var metrics: [Metric] {[
-        Metric(emoji: "⭐", label: "Stars Lit",  value: "23",      total: 47, valueAsInt: 23, sub: nil,         hue: Color(hex: 0xFFE066)),
-        Metric(emoji: "🌌", label: "Worlds",     value: "2",       total: 9,  valueAsInt: 2,  sub: nil,         hue: Color(hex: 0xA78BFA)),
-        Metric(emoji: "🔥", label: "Streak",     value: "12d",     total: nil,valueAsInt: nil,sub: "best 18d",  hue: Color(hex: 0xFF8A4C)),
-        Metric(emoji: "🏆", label: "Stickers",   value: "\(earnedCount)/\(totalStickerCount)", total: nil, valueAsInt: nil, sub: nil, hue: Color(hex: 0xFF8AD8)),
-    ]
-    }
-    
+        Metric(emoji: "⭐", label: "Stars Lit",
+               value: "\(litCount)", total: totalNonLockedStars, valueAsInt: litCount,
+               sub: nil, hue: Color(hex: 0xFFE066)),
+        Metric(emoji: "🌌", label: "Worlds",
+               value: "\(worldsStarted)", total: totalWorlds, valueAsInt: worldsStarted,
+               sub: nil, hue: Color(hex: 0xA78BFA)),
+        Metric(emoji: "🔥", label: "Streak",
+               value: "\(userSettings.currentStreak)d", total: nil, valueAsInt: nil,
+               sub: "best \(userSettings.longestStreak)d", hue: Color(hex: 0xFF8A4C)),
+        Metric(emoji: "🏆", label: "Stickers",
+               value: "\(earnedCount)/\(totalStickerCount)", total: nil, valueAsInt: nil,
+               sub: nil, hue: Color(hex: 0xFF8AD8)),
+    ]}
+
     var body: some View {
         ZStack {
             if showSettings {
                 SettingsTab(onBack: { showSettings = false })
+                    .id(contentID)
             } else {
                 profileContent
+                    .id(contentID)
             }
-            
+
             if showStickerBook {
                 StickerBookView(onBack: { showStickerBook = false })
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.85), value: showStickerBook)
+        .onChange(of: userSettings.language) { _, _ in contentID = UUID() }
     }
-    
+
     private var profileContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -99,13 +120,13 @@ struct YouTab: View {
                 stickerBook
                 heatmapCard
             }
-            .padding(.top, 62)
+            .padding(.top, 31)
             .padding(.bottom, 30)
         }
         .scrollIndicators(.hidden)
         .foregroundColor(.white)
     }
-    
+
     private var hero: some View {
         HStack(spacing: 16) {
             Text(userSettings.avatar)
@@ -123,9 +144,9 @@ struct YouTab: View {
                         .stroke(Color(hex: 0xFFE066), lineWidth: 3)
                 )
                 .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.5), radius: 16, x: 0, y: 8)
-            
+
             VStack(alignment: .leading, spacing: 2) {
-                Text("⭐ STAR CAPTAIN · LVL 4")
+                Text("⭐ \(userSettings.levelTitle.uppercased()) · LVL \(userSettings.level)")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .tracking(0.5)
                     .foregroundColor(Color(hex: 0xFFE066))
@@ -143,7 +164,7 @@ struct YouTab: View {
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
     }
-    
+
     private var metricsGrid: some View {
         LazyVGrid(columns:[GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
             ForEach(metrics) { m in metricCard(m) }
@@ -151,17 +172,17 @@ struct YouTab: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 18)
     }
-    
+
     private func metricCard(_ m: Metric) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 Text(m.emoji).font(.system(size: 16))
-                Text(m.label)
+                Text(LocalizedStringKey(m.label))
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.7))
             }
             .padding(.bottom, 6)
-            
+
             HStack(alignment: .lastTextBaseline, spacing: 6) {
                 Text(m.value)
                     .font(.system(size: 24, weight: .bold, design: .rounded))
@@ -194,7 +215,7 @@ struct YouTab: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .sCard(stroke: m.hue.opacity(0.33), padding: EdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14))
     }
-    
+
     private var stickerBook: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -209,7 +230,7 @@ struct YouTab: View {
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color(hex: 0xFFE066, opacity: 0.14)))
                     .overlay(Capsule().stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 1))
-                
+
                 Button(action: { showStickerBook = true }) {
                     Text("See all →")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -221,7 +242,7 @@ struct YouTab: View {
                 }
                 .buttonStyle(.plain)
             }
-            
+
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
                 ForEach(stickers) { s in stickerCell(s) }
             }
@@ -231,7 +252,7 @@ struct YouTab: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 18)
     }
-    
+
     private func stickerCell(_ s: StarStickerItem) -> some View {
         let c1 = s.shimmer
         let c2 = s.rarity.color
@@ -256,8 +277,8 @@ struct YouTab: View {
                 }
             }
             .frame(height: 42)
-            
-            Text(s.unlocked ? s.label : "???")
+
+            Text(s.unlocked ? LocalizedStringKey(s.label) : "???")
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .foregroundColor(s.unlocked ? .white : .white.opacity(0.35))
                 .multilineTextAlignment(.center)
@@ -289,7 +310,9 @@ struct YouTab: View {
         .shadow(color: s.unlocked ? c1.opacity(0.38) : .clear, radius: 12, x: 0, y: 4)
         .onTapGesture { showStickerBook = true }
     }
-    
+
+    // MARK: - Heatmap
+
     private var heatmapCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -297,32 +320,162 @@ struct YouTab: View {
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()
-                Text("81 of 84 days!")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(Color(hex: 0xFFE066))
-            }
-            
-            HStack(spacing: 3) {
-                ForEach(0..<12, id: \.self) { w in
-                    VStack(spacing: 3) {
-                        ForEach(0..<7, id: \.self) { d in
-                            let v = Self.days[w * 7 + d]
-                            let intensity = v < 0.15 ? 0 : v < 0.4 ? 1 : v < 0.7 ? 2 : 3
-                            heatCell(intensity: intensity)
-                                .aspectRatio(1, contentMode: .fit)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("\(userSettings.starDaysInLast84) ⭐ star days")
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(hex: 0xFFE066))
+                    Text("\(userSettings.studiedDaysInLast84) of 84 days")
+                        .font(.system(size: 10, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.5))
                 }
             }
+
+            if let info = selectedHeatCell {
+                heatCellInfoPill(info)
+                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .top)))
+            }
+
+            heatmapGrid
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .sCard(padding: EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
         .padding(.horizontal, 16)
         .padding(.bottom, 18)
+        .animation(.spring(response: 0.22, dampingFraction: 0.8), value: selectedHeatCell)
     }
-    
-    
+
+    private func heatCellInfoPill(_ info: HeatCellInfo) -> some View {
+        HStack(spacing: 6) {
+            Text("📅")
+                .font(.system(size: 12))
+            Text(info.dateLabel)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(.white)
+
+            if info.isStudied {
+                Text("·").foregroundColor(.white.opacity(0.35))
+                Text("+\(info.xp) XP")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundColor(info.isStarDay ? Color(hex: 0xFFE066) : Color(hex: 0xFF8AD8))
+                if info.isStarDay {
+                    Text("⭐ Star Day!")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(hex: 0xFFE066))
+                }
+            } else {
+                Text("·").foregroundColor(.white.opacity(0.35))
+                Text("No study")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+
+            Spacer()
+
+            Button(action: { selectedHeatCell = nil }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.white.opacity(0.4))
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(info.isStarDay  ? Color(hex: 0xFFE066, opacity: 0.12) :
+                      info.isStudied  ? Color(hex: 0xFF8AD8, opacity: 0.10) :
+                                        Color.white.opacity(0.06))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(info.isStarDay ? Color(hex: 0xFFE066, opacity: 0.4) :
+                        info.isStudied ? Color(hex: 0xFF8AD8, opacity: 0.3) :
+                                         Color.white.opacity(0.12),
+                        lineWidth: 1)
+        )
+    }
+
+    private var heatmapGrid: some View {
+        let grid = userSettings.heatmapGrid()
+        let dowLabels = ["S","M","T","W","T","F","S"]
+
+        return HStack(alignment: .top, spacing: 3) {
+            // Day-of-week label column
+            VStack(spacing: 0) {
+                // Spacer to align with the month-label row
+                Color.clear.frame(height: 14)
+                ForEach(0..<7, id: \.self) { d in
+                    Text(dowLabels[d])
+                        .font(.system(size: 7, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.28))
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(width: 10)
+
+            // Week columns
+            ForEach(0..<12, id: \.self) { w in
+                VStack(spacing: 3) {
+                    // Month label
+                    Text(monthLabel(week: w))
+                        .font(.system(size: 7, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.38))
+                        .frame(height: 11)
+
+                    ForEach(0..<7, id: \.self) { d in
+                        let xp = grid[w][d]
+                        let intensity = xp < 0 ? 0 : (xp == 0 ? 0 : xp < 50 ? 1 : xp < 150 ? 2 : 3)
+                        let isSelected = selectedHeatCell.map {
+                            let cal = Calendar.current
+                            let today = Date()
+                            let weekday = cal.component(.weekday, from: today) - 1
+                            let offset = w * 7 + d - (11 * 7 + weekday)
+                            guard let date = cal.date(byAdding: .day, value: offset, to: today) else { return false }
+                            return cal.isDate($0.date, inSameDayAs: date)
+                        } ?? false
+                        heatCell(intensity: intensity)
+                            .opacity(xp < 0 ? 0.15 : 1.0)
+                            .scaleEffect(isSelected ? 1.3 : 1.0)
+                            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isSelected)
+                            .aspectRatio(1, contentMode: .fit)
+                            .frame(maxWidth: .infinity)
+                            .onTapGesture {
+                                guard xp >= 0 else { return }
+                                let cal = Calendar.current
+                                let today = Date()
+                                let weekday = cal.component(.weekday, from: today) - 1
+                                let offset = w * 7 + d - (11 * 7 + weekday)
+                                guard let date = cal.date(byAdding: .day, value: offset, to: today) else { return }
+                                let info = HeatCellInfo(date: date, xp: xp)
+                                withAnimation { selectedHeatCell = selectedHeatCell == info ? nil : info }
+                            }
+                    }
+                }
+            }
+        }
+    }
+
+    private func monthLabel(week: Int) -> String {
+        let cal = Calendar.current
+        let today = Date()
+        let weekday = cal.component(.weekday, from: today) - 1
+        let offset = week * 7 - (11 * 7 + weekday)
+        guard let date = cal.date(byAdding: .day, value: offset, to: today) else { return "" }
+        let month = cal.component(.month, from: date)
+
+        if week == 0 { return monthAbbr(month) }
+
+        let prevOffset = (week - 1) * 7 - (11 * 7 + weekday)
+        guard let prev = cal.date(byAdding: .day, value: prevOffset, to: today) else { return "" }
+        let prevMonth = cal.component(.month, from: prev)
+        return month != prevMonth ? monthAbbr(month) : ""
+    }
+
+    private func monthAbbr(_ m: Int) -> String {
+        ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m - 1]
+    }
+
     @ViewBuilder
     private func heatCell(intensity: Int) -> some View {
         let fills: [Color] = [
@@ -340,5 +493,4 @@ struct YouTab: View {
             .fill(fills[intensity])
             .shadow(color: shadows[intensity], radius: intensity == 3 ? 5 : intensity == 2 ? 3 : 0)
     }
-    
 }

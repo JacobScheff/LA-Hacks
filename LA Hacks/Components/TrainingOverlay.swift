@@ -91,12 +91,12 @@ private struct StatusFlavour {
     let tagline: String
     let accent: Color
 
-    static func forStatus(_ s: StarStatus) -> StatusFlavour {
+    static func forStage(_ s: MasteryStage) -> StatusFlavour {
         switch s {
-        case .gap:      return StatusFlavour(badge: "😴 Sleepy Star",  tagline: "Wake it up and earn big XP!",   accent: Color(hex: 0x5EE7FF))
-        case .learning: return StatusFlavour(badge: "🌱 In Progress",  tagline: "Pick up where you left off!",   accent: Color(hex: 0xFF8AD8))
-        case .mastered: return StatusFlavour(badge: "⭐ Mastered",      tagline: "Practice keeps it shining!",   accent: Color(hex: 0xFFE066))
-        case .locked:   return StatusFlavour(badge: "🔒 Locked",        tagline: "Unlock prerequisites first.",  accent: Color(hex: 0x7B8294))
+        case .sleepy:    return StatusFlavour(badge: "😴 Sleepy Star",  tagline: "Wake it up and earn big XP!",   accent: Color(hex: 0x5EE7FF))
+        case .twinkling: return StatusFlavour(badge: "✨ Twinkling",     tagline: "Keep going — almost Shining!",  accent: Color(hex: 0xFF8AD8))
+        case .shining:   return StatusFlavour(badge: "⭐ Shining",       tagline: "Practice keeps it sparkly!",    accent: Color(hex: 0xFFE066))
+        case .locked:    return StatusFlavour(badge: "🔒 Locked",        tagline: "Unlock prerequisites first.",   accent: Color(hex: 0x7B8294))
         }
     }
 }
@@ -110,14 +110,24 @@ struct TrainingOverlay: View {
 
     @State private var launched = false
 
-    private var palette: StarPalette  { node.status.palette }
+    private var nodeStage: MasteryStage {
+        let allNeighborIds: [String] = GalaxyData.constellations.flatMap { c in
+            c.edges.compactMap { e -> String? in
+                if e.a == node.id { return e.b }
+                if e.b == node.id { return e.a }
+                return nil
+            }
+        }
+        return UserSettings.shared.stage(for: node.id, initiallyLocked: node.initiallyLocked, neighborIds: allNeighborIds)
+    }
+    private var palette: StarPalette  { nodeStage.palette }
     private var questEntry: QuestEntry { QuestData.entry(for: node.id) }
-    private var flavour: StatusFlavour { StatusFlavour.forStatus(node.status) }
+    private var flavour: StatusFlavour { StatusFlavour.forStage(nodeStage) }
     private var masteryPct: Int {
-        switch node.status {
-        case .mastered: return 100
-        case .locked:   return 0
-        default:        return Int(((node.mastery ?? 0.25) * 100).rounded())
+        switch nodeStage {
+        case .shining: return 100
+        case .locked:  return 0
+        default:       return Int(((UserSettings.shared.starMastery[node.id] ?? 0.0) * 100).rounded())
         }
     }
 
@@ -251,7 +261,7 @@ struct TrainingOverlay: View {
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(flavour.accent)
 
-                if node.status != .locked {
+                if nodeStage != .locked {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text("Mastery")
@@ -399,7 +409,7 @@ struct TrainingOverlay: View {
             HStack(spacing: 7) {
                 rewardTile(icon: "✨", label: "XP",       value: "+\(questEntry.xp)")
                 rewardTile(icon: "⏱️", label: "Time",     value: "~\(questEntry.time)m")
-                rewardTile(icon: "🏅", label: "Star Rank", value: node.status == .gap ? "+2 lvl" : "+1 lvl")
+                rewardTile(icon: "🏅", label: "Star Rank", value: nodeStage == .sleepy ? "+2 lvl" : "+1 lvl")
             }
         }
     }
@@ -430,7 +440,7 @@ struct TrainingOverlay: View {
 
     private var acceptButton: some View {
         Group {
-            if node.status != .locked {
+            if nodeStage != .locked {
                 Button(action: handleLaunch) {
                     Text(launched ? "🚀 Launching…" : "🚀 Accept Quest · +\(questEntry.xp) XP")
                         .font(.system(size: 17, weight: .bold, design: .rounded))

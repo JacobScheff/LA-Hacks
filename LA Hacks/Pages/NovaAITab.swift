@@ -2,17 +2,40 @@
 //  NovaAITab.swift
 //  LA Hacks
 //
-//  Claude-style conversational UI for Nova AI.
+//  Nova AI — sessions list home + individual chat view.
 //
 
 import SwiftUI
 
+// MARK: - Chat Session
+
+struct ChatSession: Identifiable {
+    let id: UUID
+    let date: Date
+    var messages: [ChatMessage]
+
+    init(messages: [ChatMessage]) {
+        self.id = UUID()
+        self.date = Date()
+        self.messages = messages
+    }
+
+    var preview: String {
+        messages.first(where: { $0.role == .user })?.content ?? "New conversation"
+    }
+}
+
 // MARK: - Nova AI Tab
 
 struct NovaAITab: View {
+    @State private var sessions: [ChatSession] = []
+    @State private var isInChat = false
+    @State private var currentSessionId: UUID? = nil
+
+    // Active chat state
     @State private var messages: [ChatMessage] = []
     @State private var rawStream: String = ""
-    @State private var isProcessing: Bool = false
+    @State private var isProcessing = false
     @State private var downloadProgress: Float = 0.0
     @State private var inputText: String = ""
     @FocusState private var inputFocused: Bool
@@ -25,14 +48,197 @@ struct NovaAITab: View {
     ]
 
     var body: some View {
+        Group {
+            if isInChat {
+                chatScreen
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                homeScreen
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.38, dampingFraction: 0.88), value: isInChat)
+    }
+
+    // MARK: - Home Screen
+
+    private var homeScreen: some View {
         VStack(spacing: 0) {
-            minimalHeader
+            homeHeader
+
+            if sessions.isEmpty {
+                emptyHomeState
+            } else {
+                sessionsList
+            }
+        }
+    }
+
+    private var homeHeader: some View {
+        HStack(spacing: 10) {
+            novaIconSmall(size: 34)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Nova AI")
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                Text("Your on-device AI tutor")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundColor(.white.opacity(0.45))
+            }
+
+            Spacer()
+
+            newChatIconButton
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+    }
+
+    private var newChatIconButton: some View {
+        Button(action: startNewChat) {
+            Image(systemName: "square.and.pencil")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(Color(hex: 0xFFE066))
+                .padding(8)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var emptyHomeState: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: 18) {
+                novaIconSmall(size: 100)
+                    .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.4), radius: 30)
+
+                Text("No chats yet")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+
+                Text("Start a conversation with Nova\nto begin learning!")
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.5))
+                    .multilineTextAlignment(.center)
+            }
+
+            Spacer()
+
+            newChatButton
+                .padding(.horizontal, 20)
+                .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var sessionsList: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(sessions) { session in
+                        sessionRow(session)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            }
+            .scrollIndicators(.hidden)
+
+            newChatButton
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+        }
+    }
+
+    private func sessionRow(_ session: ChatSession) -> some View {
+        let isGenerating = session.id == currentSessionId && isProcessing
+        return Button {
+            loadSession(session)
+        } label: {
+            HStack(spacing: 12) {
+                novaIconSmall(size: 38)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(session.preview)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+
+                    if isGenerating {
+                        HStack(spacing: 6) {
+                            BouncingDotsRow()
+                                .frame(height: 14)
+                            Text("Generating…")
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundColor(Color(hex: 0xFFE066).opacity(0.8))
+                        }
+                    } else {
+                        Text(session.date, style: .relative)
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .foregroundColor(.white.opacity(0.4))
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.25))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isGenerating ? Color(hex: 0xFFE066, opacity: 0.05) : Color.white.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(isGenerating ? Color(hex: 0xFFE066, opacity: 0.18) : Color.white.opacity(0.1), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var newChatButton: some View {
+        Button(action: startNewChat) {
+            HStack(spacing: 8) {
+                Image(systemName: isProcessing ? "rays" : "plus")
+                    .font(.system(size: 14, weight: .bold))
+                Text(LocalizedStringKey(isProcessing ? "Nova is thinking…" : "New Chat"))
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+            }
+            .foregroundColor(Color(hex: 0x1A0B40))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                LinearGradient(
+                    colors: isProcessing
+                        ? [Color(hex: 0xFFE066, opacity: 0.45), Color(hex: 0xFF8A4C, opacity: 0.45)]
+                        : [Color(hex: 0xFFE066), Color(hex: 0xFF8A4C)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: Color(hex: 0xFF8A4C, opacity: isProcessing ? 0.15 : 0.45), radius: 14, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .disabled(isProcessing)
+    }
+
+    // MARK: - Chat Screen
+
+    private var chatScreen: some View {
+        VStack(spacing: 0) {
+            chatHeader
 
             ZStack {
+                messagesView
+                    .allowsHitTesting(!messages.isEmpty || isProcessing)
+
                 if messages.isEmpty && !isProcessing {
                     welcomeState
-                } else {
-                    messagesView
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,13 +249,20 @@ struct NovaAITab: View {
 
             inputBar
         }
-        .onTapGesture { inputFocused = false }
     }
 
-    // MARK: - Header
-
-    private var minimalHeader: some View {
+    private var chatHeader: some View {
         HStack(spacing: 10) {
+            Button(action: exitChat) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.7))
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Color.white.opacity(0.07)))
+                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
             novaIconSmall(size: 32)
 
             VStack(alignment: .leading, spacing: 1) {
@@ -68,6 +281,7 @@ struct NovaAITab: View {
                     withAnimation(.spring(response: 0.3)) {
                         messages = []
                         rawStream = ""
+                        currentSessionId = nil
                     }
                 } label: {
                     Image(systemName: "square.and.pencil")
@@ -80,7 +294,6 @@ struct NovaAITab: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 12)
-        .background(Color.clear)
     }
 
     // MARK: - Welcome State
@@ -91,8 +304,7 @@ struct NovaAITab: View {
                 Spacer().frame(height: 40)
 
                 VStack(spacing: 14) {
-                    novaIconSmall(size: 72)
-                        .shadow(color: Color(hex: 0xCC88FF, opacity: 0.5), radius: 24)
+                    novaIconSmall(size: 90)
 
                     Text("What would you like to learn?")
                         .font(.system(size: 22, weight: .semibold, design: .rounded))
@@ -111,7 +323,7 @@ struct NovaAITab: View {
                             sendMessage()
                         } label: {
                             HStack(spacing: 12) {
-                                Text(suggestion)
+                                Text(LocalizedStringKey(suggestion))
                                     .font(.system(size: 14, weight: .medium, design: .rounded))
                                     .foregroundColor(.white.opacity(0.8))
                                     .multilineTextAlignment(.leading)
@@ -147,7 +359,7 @@ struct NovaAITab: View {
     private var messagesView: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
+                VStack(spacing: 0) {
                     ForEach(messages) { msg in
                         messageBubble(msg)
                             .padding(.horizontal, 16)
@@ -172,11 +384,19 @@ struct NovaAITab: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollIndicators(.hidden)
-            .onChange(of: messages.count) { _ in
-                withAnimation { proxy.scrollTo("bottom") }
+            .onAppear {
+                proxy.scrollTo("bottom", anchor: .bottom)
             }
-            .onChange(of: rawStream) { _ in
-                withAnimation { proxy.scrollTo("bottom") }
+            .onChange(of: messages.count) {
+                withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .onChange(of: rawStream) {
+                withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+            }
+            .onChange(of: isProcessing) {
+                if !isProcessing {
+                    withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
             }
         }
     }
@@ -185,6 +405,8 @@ struct NovaAITab: View {
     private func messageBubble(_ msg: ChatMessage) -> some View {
         if msg.role == .user {
             userBubble(msg.content)
+        } else if msg.content.hasPrefix("Oops!") {
+            novaErrorBubble(msg.content)
         } else {
             novaBubble(msg.content, isStreaming: false)
         }
@@ -215,7 +437,7 @@ struct NovaAITab: View {
         HStack(alignment: .bottom, spacing: 10) {
             novaIconSmall(size: 26)
 
-            Text(text)
+            NovaMarkdownText(content: text)
                 .font(.system(size: 15, weight: .regular, design: .rounded))
                 .foregroundColor(Color(hex: 0xE8D8FF))
                 .lineSpacing(3)
@@ -232,6 +454,39 @@ struct NovaAITab: View {
                 .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 2)
 
             Spacer(minLength: 56)
+        }
+    }
+
+    private func novaErrorBubble(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image("Nova Image")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 44)
+                .opacity(0.7)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Nova ran into a problem")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(hex: 0xFF8A8A))
+
+                Text(text)
+                    .font(.system(size: 13, weight: .regular, design: .rounded))
+                    .foregroundColor(.white.opacity(0.6))
+                    .lineSpacing(2)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(hex: 0xFF3B3B, opacity: 0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color(hex: 0xFF8A8A, opacity: 0.25), lineWidth: 1)
+            )
+
+            Spacer(minLength: 40)
         }
     }
 
@@ -289,15 +544,22 @@ struct NovaAITab: View {
     // MARK: - Input Bar
 
     private var inputBar: some View {
-        HStack(alignment: .bottom, spacing: 10) {
+        HStack(alignment: .center, spacing: 10) {
             TextField("Ask Nova anything…", text: $inputText, axis: .vertical)
                 .font(.system(size: 15, design: .rounded))
                 .foregroundColor(.white)
                 .tint(Color(hex: 0xFFE066))
                 .lineLimit(1...6)
+                .submitLabel(.send)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
                 .focused($inputFocused)
+                .onChange(of: inputText) {
+                    if inputText.last == "\n" {
+                        inputText = String(inputText.dropLast())
+                        if canSend { sendMessage() }
+                    }
+                }
 
             Button(action: sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
@@ -309,7 +571,7 @@ struct NovaAITab: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSend)
-            .padding(.bottom, 6)
+            .padding(.trailing, 6)
         }
         .background(
             RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -332,17 +594,54 @@ struct NovaAITab: View {
     // MARK: - Shared Nova Icon
 
     private func novaIconSmall(size: CGFloat) -> some View {
-        Text("✦")
-            .font(.system(size: size * 0.38, weight: .bold))
-            .foregroundColor(.white)
+        Image("Nova Image")
+            .resizable()
+            .scaledToFit()
             .frame(width: size, height: size)
-            .background(
-                Circle().fill(LinearGradient(
-                    colors: [Color(hex: 0xCC88FF), Color(hex: 0x5EE7FF)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-            )
-            .shadow(color: Color(hex: 0xCC88FF, opacity: 0.35), radius: 8)
+            .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.4), radius: size * 0.25)
+    }
+
+    // MARK: - Navigation Actions
+
+    private func startNewChat() {
+        guard !isProcessing else { return }
+        messages = []
+        rawStream = ""
+        downloadProgress = 0.0
+        currentSessionId = nil
+        isInChat = true
+    }
+
+    private func loadSession(_ session: ChatSession) {
+        // Re-entering the session that's currently generating — just navigate back in
+        if session.id == currentSessionId {
+            isInChat = true
+            return
+        }
+        guard !isProcessing else { return }
+        messages = session.messages
+        rawStream = ""
+        isProcessing = false
+        currentSessionId = session.id
+        isInChat = true
+    }
+
+    private func exitChat() {
+        inputFocused = false
+        guard !messages.isEmpty else {
+            isInChat = false
+            return
+        }
+        if let sid = currentSessionId, let idx = sessions.firstIndex(where: { $0.id == sid }) {
+            sessions[idx].messages = messages
+        } else {
+            // First exit — assign an ID so onComplete can update this session later
+            let newSession = ChatSession(messages: messages)
+            currentSessionId = newSession.id
+            sessions.insert(newSession, at: 0)
+        }
+        // Leave messages/rawStream/isProcessing intact — generation continues in background
+        isInChat = false
     }
 
     // MARK: - Thought Channel Parsing
@@ -419,9 +718,37 @@ struct NovaAITab: View {
                     }
                     self.messages.append(ChatMessage(role: .assistant, content: finalText))
                     self.rawStream = ""
+                    // Persist final answer into whichever session this belongs to
+                    if let sid = self.currentSessionId,
+                       let idx = self.sessions.firstIndex(where: { $0.id == sid }) {
+                        self.sessions[idx].messages = self.messages
+                    }
                 }
             }
         )
+    }
+}
+
+// MARK: - Markdown Text
+
+private struct NovaMarkdownText: View {
+    let content: String
+
+    private var attributed: AttributedString? {
+        try? AttributedString(
+            markdown: content,
+            options: AttributedString.MarkdownParsingOptions(
+                interpretedSyntax: .inlineOnlyPreservingWhitespace
+            )
+        )
+    }
+
+    var body: some View {
+        if let attributed {
+            Text(attributed)
+        } else {
+            Text(content)
+        }
     }
 }
 

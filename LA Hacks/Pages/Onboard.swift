@@ -70,6 +70,7 @@ struct Onboard: View {
             }
         }
         .animation(.spring(response: 0.5, dampingFraction: 0.85), value: step)
+        .dismissesKeyboard()
         .preferredColorScheme(.dark)
     }
 
@@ -79,17 +80,15 @@ struct Onboard: View {
         VStack(spacing: 24) {
             Spacer()
 
-            ZStack {
-                Circle()
-                    .fill(LinearGradient(
-                        colors:[Color(hex: 0x5EE7FF, opacity: 0.3), Color(hex: 0xA78BFA, opacity: 0.3)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 120, height: 120)
-                Text("🦊").font(.system(size: 64))
+            ZStack(alignment: .topTrailing) {
+                Image("Nova Image")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 160, height: 160)
+                    .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.5), radius: 30)
                 Text("✨")
-                    .font(.system(size: 32))
-                    .offset(x: 45, y: -40)
+                    .font(.system(size: 28))
+                    .offset(x: 8, y: -8)
             }
 
             VStack(spacing: 12) {
@@ -98,7 +97,7 @@ struct Onboard: View {
                     .tracking(-0.5)
                     .foregroundColor(.white)
 
-                Text("Nova is a super-smart AI fox who lives on your device. To help you learn anything, we need to download Nova's brain!")
+                Text("Nova is your super-smart AI tutor who lives on your device. To help you learn anything, we need to download Nova's brain!")
                     .font(.system(size: 15, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.8))
                     .multilineTextAlignment(.center)
@@ -156,7 +155,10 @@ struct Onboard: View {
                             .stroke(Color(hex: 0xFFE066, opacity: 0.6 * (1 - phase)), lineWidth: 3)
                             .scaleEffect(0.5 + 1.2 * phase)
                     }
-                    Text("🦊").font(.system(size: 80))
+                    Image("Nova Image")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
                         .scaleEffect(1.0 + 0.05 * sin(t * 3))
                 }
                 .frame(width: 200, height: 200)

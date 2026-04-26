@@ -2,38 +2,41 @@
 //  TopHeader.swift
 //  LA Hacks
 //
-//  Star Hop! TopHeader.
-//  Ported from project/galaxy-ui.jsx.
+//  Star Hop! TopHeader — live streak, XP, level, name, and avatar
+//  all driven by UserSettings.
 //
 
 import SwiftUI
 import UIKit
 
-// MARK: - Top header (Hi Maya, XP, streak, filters)
+// MARK: - Top header (Hi [name], XP, streak, filters)
 
 struct TopHeader: View {
     let stats: (mastered: Int, gaps: Int, learning: Int)
-    let filter: StarStatus?
-    let onFilter: (StarStatus?) -> Void
+    let filter: MasteryStage?
+    let onFilter: (MasteryStage?) -> Void
+    let onProfile: () -> Void
     var topInset: CGFloat = 44
 
-    private let xp = 1240
-    private let xpMax = 1500
-    private let level = 4
-    private let streak = 12
+    @Environment(UserSettings.self) var userSettings
+
+    // First name only (e.g. "Maya the Brave" → "Maya")
+    private var firstName: String {
+        userSettings.explorerName.components(separatedBy: " ").first ?? userSettings.explorerName
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Hi, Maya! 👋")
+                    Text("Hi, \(firstName)! 👋")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .tracking(-0.4)
                         .foregroundColor(.white)
                     HStack(spacing: 0) {
                         Text("\(stats.mastered) stars shining")
                             .foregroundColor(Color(hex: 0xFFE066))
-                        Text(" · \(stats.gaps) sleepy · \(stats.learning) growing")
+                        Text(" · \(stats.gaps) sleepy · \(stats.learning) twinkling")
                             .foregroundColor(.white.opacity(0.75))
                     }
                     .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -55,10 +58,10 @@ struct TopHeader: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    chip(id: nil,        label: "🌌 All",      dot: nil)
-                    chip(id: .gap,       label: "Wake up!",    dot: Color(hex: 0x5EE7FF))
-                    chip(id: .learning,  label: "Growing",     dot: Color(hex: 0xFF8AD8))
-                    chip(id: .mastered,  label: "Shining",     dot: Color(hex: 0xFFE066))
+                    chip(id: nil,        label: "🌌 All",        dot: nil)
+                    chip(id: .sleepy,    label: "😴 Sleepy",     dot: Color(hex: 0x5EE7FF))
+                    chip(id: .twinkling, label: "✨ Twinkling",  dot: Color(hex: 0xFF8AD8))
+                    chip(id: .shining,   label: "⭐ Shining",    dot: Color(hex: 0xFFE066))
                 }
                 .padding(.horizontal, 14)
             }
@@ -69,7 +72,7 @@ struct TopHeader: View {
     }
 
     private var streakChip: some View {
-        Text("🔥 \(streak)")
+        Text("🔥 \(userSettings.currentStreak)")
             .font(.system(size: 13, weight: .bold, design: .rounded))
             .foregroundColor(.white)
             .padding(.horizontal, 10)
@@ -89,21 +92,24 @@ struct TopHeader: View {
     }
 
     private var avatar: some View {
-        Text("🦊")
-            .font(.system(size: 22))
-            .frame(width: 44, height: 44)
-            .background(
-                LinearGradient(
-                    colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
+        Button(action: onProfile) {
+            Text(userSettings.avatar)
+                .font(.system(size: 22))
+                .frame(width: 44, height: 44)
+                .background(
+                    LinearGradient(
+                        colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
                 )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color(hex: 0xFFE066), lineWidth: 2)
-            )
-            .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.5), radius: 8, x: 0, y: 4)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(hex: 0xFFE066), lineWidth: 2)
+                )
+                .shadow(color: Color(hex: 0x5EE7FF, opacity: 0.5), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
     }
 
     private var xpBar: some View {
@@ -114,7 +120,7 @@ struct TopHeader: View {
                         colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     ))
-                Text("\(level)")
+                Text("\(userSettings.level)")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0x3A2A00))
             }
@@ -123,10 +129,10 @@ struct TopHeader: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
-                    Text("Star Captain · Lvl \(level)")
+                    Text("\(userSettings.levelTitle) · Lvl \(userSettings.level)")
                         .foregroundColor(.white)
                     Spacer()
-                    Text("\(xp) / \(xpMax) XP")
+                    Text("\(userSettings.totalXP) / \(userSettings.xpForNextLevel) XP")
                         .foregroundColor(Color(hex: 0xFFE066))
                 }
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
@@ -139,7 +145,7 @@ struct TopHeader: View {
                                 colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
                                 startPoint: .leading, endPoint: .trailing
                             ))
-                            .frame(width: g.size.width * CGFloat(xp) / CGFloat(xpMax))
+                            .frame(width: g.size.width * CGFloat(userSettings.xpProgress))
                             .shadow(color: Color(hex: 0xFFE066, opacity: 0.8), radius: 4)
                     }
                 }
@@ -160,7 +166,7 @@ struct TopHeader: View {
     }
 
     @ViewBuilder
-    private func chip(id: StarStatus?, label: String, dot: Color?) -> some View {
+    private func chip(id: MasteryStage?, label: String, dot: Color?) -> some View {
         let active = filter == id
         Button(action: { onFilter(id) }) {
             HStack(spacing: 6) {
@@ -170,7 +176,7 @@ struct TopHeader: View {
                         .frame(width: 7, height: 7)
                         .shadow(color: dot, radius: 3)
                 }
-                Text(label)
+                Text(LocalizedStringKey(label))
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
             }
             .foregroundColor(active ? Color(hex: 0xFFE066) : .white.opacity(0.85))

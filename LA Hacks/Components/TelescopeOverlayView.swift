@@ -12,6 +12,7 @@ import SwiftUI
 struct TelescopeOverlayView: View {
     let viewW: CGFloat
     let viewH: CGFloat
+    var lensRotation: Double = 0   // radians; driven by parent warp animation
 
     var body: some View {
         let cx = viewW / 2
@@ -63,15 +64,54 @@ struct TelescopeOverlayView: View {
                 lineWidth: 1.5
             )
 
-            // Lens reflection rings
-            ctx.stroke(
-                Path(ellipseIn: CGRect(x: cx - r*0.87, y: cy - r*0.87, width: r*0.87*2, height: r*0.87*2)),
-                with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.07)), lineWidth: 1
-            )
-            ctx.stroke(
-                Path(ellipseIn: CGRect(x: cx - r*0.70, y: cy - r*0.70, width: r*0.70*2, height: r*0.70*2)),
-                with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.04)), lineWidth: 0.8
-            )
+            // Outer focus-barrel ring — asymmetric so rotation is legible.
+            // Layout: bright index mark at i=0, then a 60° gap (i=1..6 skipped),
+            // then regular ticks resume. The gap sweeping around makes spinning obvious.
+            let outerTickColor  = Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.26)
+            let outerIndexColor = Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.70)
+            var outerTicks = Path()
+            var outerIndex = Path()
+            for i in 0..<36 {
+                if i >= 1 && i <= 6 { continue }    // 60° gap right after the index mark
+                let theta = Double(i) * (.pi / 18.0) + lensRotation
+                let isMajor = (i % 3 == 0)
+                let isIndex = (i == 0)
+                let innerR = r * (isIndex ? 0.76 : isMajor ? 0.81 : 0.84)
+                let p1 = CGPoint(x: cx + CGFloat(cos(theta)) * innerR,
+                                 y: cy + CGFloat(sin(theta)) * innerR)
+                let p2 = CGPoint(x: cx + CGFloat(cos(theta)) * r * 0.87,
+                                 y: cy + CGFloat(sin(theta)) * r * 0.87)
+                if isIndex {
+                    outerIndex.move(to: p1); outerIndex.addLine(to: p2)
+                } else {
+                    outerTicks.move(to: p1); outerTicks.addLine(to: p2)
+                }
+            }
+            ctx.stroke(outerTicks, with: .color(outerTickColor), lineWidth: 0.7)
+            ctx.stroke(outerIndex, with: .color(outerIndexColor), lineWidth: 1.5)
+
+            // Inner focus-barrel ring — 24 ticks, counter-rotates at 0.6×.
+            // Gap at i=14..17 (different clock position keeps the two rings readable).
+            var innerTicks = Path()
+            var innerIndex = Path()
+            for i in 0..<24 {
+                if i >= 14 && i <= 17 { continue }  // 60° gap
+                let theta = Double(i) * (.pi / 12.0) - lensRotation * 0.6
+                let isMajor = (i % 4 == 0)
+                let isIndex = (i == 0)
+                let innerR = r * (isIndex ? 0.61 : isMajor ? 0.63 : 0.65)
+                let p1 = CGPoint(x: cx + CGFloat(cos(theta)) * innerR,
+                                 y: cy + CGFloat(sin(theta)) * innerR)
+                let p2 = CGPoint(x: cx + CGFloat(cos(theta)) * r * 0.70,
+                                 y: cy + CGFloat(sin(theta)) * r * 0.70)
+                if isIndex {
+                    innerIndex.move(to: p1); innerIndex.addLine(to: p2)
+                } else {
+                    innerTicks.move(to: p1); innerTicks.addLine(to: p2)
+                }
+            }
+            ctx.stroke(innerTicks, with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.16)), lineWidth: 0.5)
+            ctx.stroke(innerIndex, with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.50)), lineWidth: 1.0)
 
         }
         .frame(width: viewW, height: viewH)

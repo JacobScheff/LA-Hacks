@@ -97,7 +97,12 @@ private func freeClusterCenter(avoiding constellations: [Constellation]) -> CGPo
     let bboxPad = minGap / 2           // split gap evenly between the two sides
     let probeHalf = outerR + minGap / 2
 
-    let boxes = constellations.map { $0.boundingRect(padding: bboxPad) }
+    let boxes = constellations.map { c -> CGRect in
+        let r = c.boundingRect(padding: bboxPad)
+        let inflateW = r.width * 0.25
+        let inflateH = r.height * 0.25
+        return r.insetBy(dx: -inflateW, dy: -inflateH)
+    }
 
     func isFree(_ x: CGFloat, _ y: CGFloat) -> Bool {
         let probe = CGRect(x: x - probeHalf, y: y - probeHalf,
@@ -165,7 +170,7 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
                 id: "gen-\(now)-\(i)",
                 label: t.label, star: "New ✨", emoji: t.emoji,
                 x: positions[i].0, y: positions[i].1,
-                status: .gap, size: 5, mastery: 0
+                initiallyLocked: false, size: 5
             )
         }
         return GenerationOutcome(
@@ -193,7 +198,7 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
             id: "\(newId)-\(i)",
             label: t.label, star: "New ✨", emoji: t.emoji,
             x: positions[i].0, y: positions[i].1,
-            status: .gap, size: 5, mastery: 0
+            initiallyLocked: false, size: 5
         )
     }
     let neighborPool: [(label: String, emoji: String)] = [
@@ -214,7 +219,7 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
             label: pick.label, star: "Sleepy", emoji: pick.emoji,
             x: n.x + CGFloat(cos(ang)) * dist,
             y: n.y + CGFloat(sin(ang)) * dist,
-            status: .locked, size: 3.5, mastery: nil
+            initiallyLocked: true, size: 3.5
         )
     }
     var edges: [Edge] = []
@@ -324,6 +329,7 @@ struct UploadModal: View {
                 }
                 .padding(.horizontal, 18)
             }
+            .dismissesKeyboard()
 
             footer
         }

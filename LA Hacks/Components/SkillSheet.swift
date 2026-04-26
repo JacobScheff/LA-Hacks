@@ -17,36 +17,47 @@ struct SkillSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var palette: StarPalette { node.status.palette }
+    private var nodeStage: MasteryStage {
+        guard let info = state.nodesById()[node.id],
+              let c = state.constellations.first(where: { $0.id == info.constellationId })
+        else { return node.initiallyLocked ? .locked : .sleepy }
+        let neighborIds = c.edges.compactMap { e -> String? in
+            if e.a == node.id { return e.b }
+            if e.b == node.id { return e.a }
+            return nil
+        }
+        return UserSettings.shared.stage(for: node.id, initiallyLocked: node.initiallyLocked, neighborIds: neighborIds)
+    }
+    private var palette: StarPalette { nodeStage.palette }
     private var mastery: Double {
-        switch node.status {
-        case .mastered: return 1.0
-        case .locked:   return 0.0
-        default:        return node.mastery ?? 0.3
+        switch nodeStage {
+        case .shining: return 1.0
+        case .locked:  return 0.0
+        default:       return UserSettings.shared.starMastery[node.id] ?? 0.0
         }
     }
     private var xpReward: Int {
-        switch node.status {
-        case .gap: return 80
-        case .learning: return 50
-        case .mastered: return 20
-        case .locked: return 0
+        switch nodeStage {
+        case .sleepy:    return 80
+        case .twinkling: return 50
+        case .shining:   return 20
+        case .locked:    return 0
         }
     }
     private var ctaLabel: String {
-        switch node.status {
-        case .mastered: return "✨ Practice for \(xpReward) XP"
-        case .learning: return "🚀 Continue quest · +\(xpReward) XP"
-        case .gap:      return "⚡ Wake up this star! +\(xpReward) XP"
-        case .locked:   return "🔒 Master prerequisites first"
+        switch nodeStage {
+        case .shining:   return "✨ Practice for \(xpReward) XP"
+        case .twinkling: return "🚀 Keep going · +\(xpReward) XP"
+        case .sleepy:    return "⚡ Wake up this star! +\(xpReward) XP"
+        case .locked:    return "🔒 Master prerequisites first"
         }
     }
     private var statusBubble: (label: String, bg: Color, ring: Color) {
-        switch node.status {
-        case .mastered: return ("⭐ Shining bright!",         Color(hex: 0xFFE066, opacity: 0.25), Color(hex: 0xFFE066))
-        case .learning: return ("🌱 Growing!",                Color(hex: 0xFF8AD8, opacity: 0.25), Color(hex: 0xFF8AD8))
-        case .gap:      return ("😴 Sleepy — wake it up!",    Color(hex: 0x5EE7FF, opacity: 0.25), Color(hex: 0x5EE7FF))
-        case .locked:   return ("🔒 Locked",                  Color(hex: 0x788296, opacity: 0.18), Color(hex: 0x7B8294))
+        switch nodeStage {
+        case .shining:   return ("⭐ Shining!",                Color(hex: 0xFFE066, opacity: 0.25), Color(hex: 0xFFE066))
+        case .twinkling: return ("✨ Twinkling!",              Color(hex: 0xFF8AD8, opacity: 0.25), Color(hex: 0xFF8AD8))
+        case .sleepy:    return ("😴 Sleepy — wake it up!",    Color(hex: 0x5EE7FF, opacity: 0.25), Color(hex: 0x5EE7FF))
+        case .locked:    return ("🔒 Locked",                  Color(hex: 0x788296, opacity: 0.18), Color(hex: 0x7B8294))
         }
     }
     private var related: [StarNode] {
@@ -64,18 +75,18 @@ struct SkillSheet: View {
             .map { $0 }
     }
     private var minutes: Int {
-        switch node.status {
-        case .mastered: return 5
-        case .learning: return 8
-        default: return 12
+        switch nodeStage {
+        case .shining:   return 5
+        case .twinkling: return 8
+        default:         return 12
         }
     }
     private var novaSays: String {
-        switch node.status {
-        case .mastered: return "You crushed this one! Practice keeps your star super sparkly."
-        case .locked:   return "Brighten the connecting stars first and I'll unlock this for you!"
-        case .gap:      return "This star is taking a nap. Let's wake it up with a fun mini-game!"
-        case .learning: return "You're doing great! A few more rounds and this star will SHINE."
+        switch nodeStage {
+        case .shining:   return "You crushed this one! Practice keeps your star super sparkly."
+        case .locked:    return "Brighten the connecting stars first and I'll unlock this for you!"
+        case .sleepy:    return "This star is taking a nap. Let's wake it up with a fun lesson!"
+        case .twinkling: return "You're doing great! A couple more rounds and this star will SHINE."
         }
     }
 
@@ -92,7 +103,7 @@ struct SkillSheet: View {
                     relatedSection
                         .padding(.bottom, 16)
                 }
-                if node.status == .locked {
+                if nodeStage == .locked {
                     lockedCTA
                 } else {
                     primaryCTA
@@ -185,9 +196,9 @@ struct SkillSheet: View {
 
     private var statTiles: some View {
         HStack(spacing: 8) {
-            statTile(icon: "🎮", label: "Played", value: node.status == .mastered ? "12x" : node.status == .locked ? "—" : "4x")
-            statTile(icon: "⏰", label: "Last", value: node.status == .locked ? "—" : node.status == .mastered ? "6d" : "17h")
-            statTile(icon: "🎯", label: "Score", value: node.status == .locked ? "—" : "\(Int(mastery * 100))%")
+            statTile(icon: "🎮", label: "Played", value: nodeStage == .shining ? "12x" : nodeStage == .locked ? "—" : "4x")
+            statTile(icon: "⏰", label: "Last", value: nodeStage == .locked ? "—" : nodeStage == .shining ? "6d" : "17h")
+            statTile(icon: "🎯", label: "Score", value: nodeStage == .locked ? "—" : "\(Int(mastery * 100))%")
         }
     }
 
@@ -220,7 +231,9 @@ struct SkillSheet: View {
                 .foregroundColor(.white.opacity(0.6))
             FlowLayout(spacing: 6) {
                 ForEach(related, id: \.id) { r in
-                    let pal = r.status.palette
+                    let pal = (UserSettings.shared.starMastery[r.id].map { m -> MasteryStage in
+                        m >= UserSettings.shiningThreshold ? .shining : m >= UserSettings.twinklingThreshold ? .twinkling : .sleepy
+                    } ?? .sleepy).palette
                     HStack(spacing: 6) {
                         Text(r.emoji).font(.system(size: 13))
                         Text(r.label)

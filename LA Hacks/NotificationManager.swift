@@ -5,11 +5,24 @@
 
 import UserNotifications
 
-final class NotificationManager {
+final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
-    private init() {}
 
     private let identifier = "dailyLessonReminder"
+
+    private override init() {
+        super.init()
+        UNUserNotificationCenter.current().delegate = self
+    }
+
+    // Show banner + play sound even when the app is in the foreground
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
+    }
 
     func requestPermission(completion: ((Bool) -> Void)? = nil) {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
@@ -48,5 +61,18 @@ final class NotificationManager {
         } else {
             cancelReminder()
         }
+    }
+
+    /// Fires an immediate notification celebrating a newly earned sticker.
+    func scheduleStickerEarnedNotification(name: String, stickerName: String, emoji: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "\(emoji) New sticker unlocked!"
+        content.body = "Hey \(name), you just earned the \(stickerName) sticker. Check your collection!"
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 2, repeats: false)
+        let id = "stickerEarned_\(UUID().uuidString)"
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        UNUserNotificationCenter.current().add(request)
     }
 }

@@ -3,8 +3,7 @@
 //  LA Hacks
 //
 //  Full sticker book page accessible from the Me tab.
-//  Hosts the StickerBookView screen along with the sticker data types
-//  (StickerCat, StickerRarity, StarStickerItem, StarStickerData).
+//  Sticker unlock state is driven live from UserSettings.
 //
 
 import SwiftUI
@@ -85,43 +84,85 @@ struct StarStickerItem: Identifiable {
 // MARK: - Sticker data
 
 enum StarStickerData {
-    static let all: [StarStickerItem] = [
-        // MATH
-        StarStickerItem(id: "pizza_pro",    cat: .math,     emoji: "🍕", label: "Pizza Pro",        rarity: .rare,   unlocked: true,  earnedDate: "Apr 12", how: "Mastered all fraction stars in Pizza Planet",      xp: 120, shimmer: Color(hex: 0xFF8AD8)),
-        StarStickerItem(id: "sharp_shoot",  cat: .math,     emoji: "🎯", label: "Sharp Shooter",    rarity: .common, unlocked: true,  earnedDate: "Apr 8",  how: "Got 10 questions right in a row",                  xp: 60,  shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "times_whiz",   cat: .math,     emoji: "✖️", label: "Times Whiz",       rarity: .common, unlocked: true,  earnedDate: "Mar 30", how: "Finished the Times Tables speed round",            xp: 60,  shimmer: Color(hex: 0x5EE7FF)),
-        StarStickerItem(id: "cool_cube",    cat: .math,     emoji: "🧊", label: "Cool Cube",        rarity: .rare,   unlocked: false, earnedDate: nil,      how: "Master all Volume & 3D Shape stars",               xp: 100, shimmer: Color(hex: 0x5EE7FF)),
-        StarStickerItem(id: "geo_gem",      cat: .math,     emoji: "💎", label: "Geometry Gem",     rarity: .epic,   unlocked: false, earnedDate: nil,      how: "Complete the entire Shape City constellation",     xp: 150, shimmer: Color(hex: 0xA78BFA)),
-        StarStickerItem(id: "frac_king",    cat: .math,     emoji: "👑", label: "Fraction King",    rarity: .epic,   unlocked: false, earnedDate: nil,      how: "Score 100% on 3 fraction quizzes",                 xp: 150, shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "speed_demon",  cat: .math,     emoji: "⚡", label: "Speed Demon",      rarity: .rare,   unlocked: false, earnedDate: nil,      how: "Finish a speed round in under 60 seconds",         xp: 80,  shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "numbers_boss", cat: .math,     emoji: "🔢", label: "Numbers Boss",     rarity: .common, unlocked: false, earnedDate: nil,      how: "Light up 10 math stars total",                     xp: 60,  shimmer: Color(hex: 0xFF8AD8)),
-        // READING
-        StarStickerItem(id: "word_wiz",     cat: .reading,  emoji: "🧙", label: "Word Wizard",      rarity: .rare,   unlocked: false, earnedDate: nil,      how: "Master all stars in Story Shore",                  xp: 100, shimmer: Color(hex: 0xA78BFA)),
-        StarStickerItem(id: "story_star",   cat: .reading,  emoji: "📖", label: "Story Star",       rarity: .common, unlocked: false, earnedDate: nil,      how: "Complete 5 reading quests",                        xp: 60,  shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "speed_read",   cat: .reading,  emoji: "👁️", label: "Speed Reader",     rarity: .rare,   unlocked: false, earnedDate: nil,      how: "Read 3 stories without hints",                     xp: 90,  shimmer: Color(hex: 0x5EE7FF)),
-        StarStickerItem(id: "detective",    cat: .reading,  emoji: "🔍", label: "Detail Detective",  rarity: .epic,   unlocked: false, earnedDate: nil,      how: "Find every hidden detail in 5 stories",            xp: 140, shimmer: Color(hex: 0xFF8AD8)),
-        // STREAKS
-        StarStickerItem(id: "streak_7",     cat: .streaks,  emoji: "🔥", label: "7-Day Streak",     rarity: .common, unlocked: true,  earnedDate: "Apr 15", how: "Studied 7 days in a row",                          xp: 70,  shimmer: Color(hex: 0xFF8A4C)),
-        StarStickerItem(id: "quick_fox",    cat: .streaks,  emoji: "🦊", label: "Quick Fox",        rarity: .rare,   unlocked: true,  earnedDate: "Apr 1",  how: "Completed a quest in under 5 minutes",             xp: 80,  shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "hot_streak",   cat: .streaks,  emoji: "🌋", label: "Hot Streak",       rarity: .epic,   unlocked: false, earnedDate: nil,      how: "Keep a 21-day streak going",                       xp: 200, shimmer: Color(hex: 0xFF8A4C)),
-        StarStickerItem(id: "iron_will",    cat: .streaks,  emoji: "🏋️", label: "Iron Will",        rarity: .legend, unlocked: false, earnedDate: nil,      how: "Study every single day for 60 days",               xp: 500, shimmer: Color(hex: 0xA78BFA)),
-        StarStickerItem(id: "symm_star",    cat: .streaks,  emoji: "🦋", label: "Symmetry Star",    rarity: .rare,   unlocked: true,  earnedDate: "Apr 18", how: "Unlocked by completing Symmetry quests",           xp: 90,  shimmer: Color(hex: 0xFF8AD8)),
-        // EXPLORER
-        StarStickerItem(id: "rocket_kid",   cat: .explorer, emoji: "🚀", label: "Rocket Kid",       rarity: .common, unlocked: true,  earnedDate: "Jan 10", how: "Explored your first constellation",                xp: 50,  shimmer: Color(hex: 0x5EE7FF)),
-        StarStickerItem(id: "space_cadet",  cat: .explorer, emoji: "🪐", label: "Space Cadet",      rarity: .rare,   unlocked: false, earnedDate: nil,      how: "Complete the Space Explorer trip",                 xp: 120, shimmer: Color(hex: 0xA78BFA)),
-        StarStickerItem(id: "star_captain", cat: .explorer, emoji: "⭐", label: "Star Captain",     rarity: .epic,   unlocked: false, earnedDate: nil,      how: "Light up 30 stars total",                          xp: 180, shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "cosmo_scout",  cat: .explorer, emoji: "🌌", label: "Cosmic Scout",     rarity: .rare,   unlocked: false, earnedDate: nil,      how: "Visit every constellation in the galaxy",          xp: 130, shimmer: Color(hex: 0x5EE7FF)),
-        StarStickerItem(id: "galaxy_brain", cat: .explorer, emoji: "🧠", label: "Galaxy Brain",     rarity: .legend, unlocked: false, earnedDate: nil,      how: "Master 40 stars across all subjects",              xp: 400, shimmer: Color(hex: 0xFF8AD8)),
-        // SECRET
-        StarStickerItem(id: "hist_hero",    cat: .secret,   emoji: "🦖", label: "History Hero",     rarity: .rare,   unlocked: false, earnedDate: nil,      how: "???",                                              xp: 100, shimmer: Color(hex: 0xA78BFA)),
-        StarStickerItem(id: "champ",        cat: .secret,   emoji: "🏆", label: "Champion",         rarity: .legend, unlocked: false, earnedDate: nil,      how: "???",                                              xp: 500, shimmer: Color(hex: 0xFFE066)),
-        StarStickerItem(id: "all_stars",    cat: .secret,   emoji: "🌠", label: "All Stars",        rarity: .legend, unlocked: false, earnedDate: nil,      how: "???",                                              xp: 500, shimmer: Color(hex: 0x5EE7FF)),
-        StarStickerItem(id: "nova_friend",  cat: .secret,   emoji: "🦊", label: "Nova's Pal",       rarity: .epic,   unlocked: false, earnedDate: nil,      how: "???",                                              xp: 200, shimmer: Color(hex: 0xFF8AD8)),
-        StarStickerItem(id: "rainbow",      cat: .secret,   emoji: "🌈", label: "Rainbow",          rarity: .epic,   unlocked: false, earnedDate: nil,      how: "???",                                              xp: 200, shimmer: Color(hex: 0xA78BFA)),
-    ]
 
-    static var unlockedCount: Int { all.filter { $0.unlocked }.count }
-    static let newIds: Set<String> = ["symm_star"]
+    static let totalCount = 47
+
+    /// No sticker ever shows a permanent "new" badge — newness is transient.
+    static let newIds: Set<String> = []
+
+    /// Returns all stickers with live unlock state from the provided sets.
+    static func items(unlocked: Set<String>, dates: [String: String]) -> [StarStickerItem] {
+        rawTemplates.map { t in
+            StarStickerItem(
+                id: t.id, cat: t.cat, emoji: t.emoji, label: t.label, rarity: t.rarity,
+                unlocked: unlocked.contains(t.id),
+                earnedDate: dates[t.id],
+                how: t.how, xp: t.xp, shimmer: t.shimmer
+            )
+        }
+    }
+
+    // MARK: Raw template data (unlock state is injected at runtime)
+
+    private struct T {
+        let id: String; let cat: StickerCat; let emoji: String; let label: String
+        let rarity: StickerRarity; let how: String; let xp: Int; let shimmer: Color
+    }
+
+    private static let rawTemplates: [T] = [
+        // MATH
+        T(id:"pizza_pro",       cat:.math,     emoji:"🍕", label:"Pizza Pro",          rarity:.rare,   how:"Master the fraction stars",                          xp:120, shimmer:Color(hex:0xFF8AD8)),
+        T(id:"sharp_shoot",     cat:.math,     emoji:"🎯", label:"Sharp Shooter",      rarity:.common, how:"Build a 10-answer correct streak",                   xp:60,  shimmer:Color(hex:0xFFE066)),
+        T(id:"times_whiz",      cat:.math,     emoji:"✖️", label:"Times Whiz",         rarity:.common, how:"Master the Multiplication star",                     xp:60,  shimmer:Color(hex:0x5EE7FF)),
+        T(id:"cool_cube",       cat:.math,     emoji:"🧊", label:"Cool Cube",          rarity:.rare,   how:"Master 15 stars total",                              xp:100, shimmer:Color(hex:0x5EE7FF)),
+        T(id:"geo_gem",         cat:.math,     emoji:"💎", label:"Geometry Gem",       rarity:.epic,   how:"Master both the Triangle and Area stars",            xp:150, shimmer:Color(hex:0xA78BFA)),
+        T(id:"frac_king",       cat:.math,     emoji:"👑", label:"Fraction King",      rarity:.epic,   how:"Finish 3 lessons with a perfect score",              xp:150, shimmer:Color(hex:0xFFE066)),
+        T(id:"speed_demon",     cat:.math,     emoji:"⚡", label:"Speed Demon",        rarity:.rare,   how:"Nail a lesson with no hints and no wrong answers",   xp:80,  shimmer:Color(hex:0xFFE066)),
+        T(id:"numbers_boss",    cat:.math,     emoji:"🎲", label:"Numbers Boss",       rarity:.common, how:"Master 10 stars total",                              xp:60,  shimmer:Color(hex:0xFF8AD8)),
+        T(id:"calc_wizard",     cat:.math,     emoji:"🔮", label:"Calc Wizard",        rarity:.rare,   how:"Earn 500 total XP",                                  xp:100, shimmer:Color(hex:0xA78BFA)),
+        T(id:"perfect_score",   cat:.math,     emoji:"✨", label:"Perfect Score",      rarity:.rare,   how:"Finish any lesson without a single wrong answer",    xp:80,  shimmer:Color(hex:0xFFE066)),
+        T(id:"number_cruncher", cat:.math,     emoji:"🖥️", label:"Number Cruncher",    rarity:.epic,   how:"Earn 1000 total XP",                                 xp:150, shimmer:Color(hex:0x5EE7FF)),
+        // READING
+        T(id:"word_wiz",        cat:.reading,  emoji:"🧙", label:"Word Wizard",        rarity:.rare,   how:"Master the Main Idea and Habitat stars",             xp:100, shimmer:Color(hex:0xA78BFA)),
+        T(id:"story_star",      cat:.reading,  emoji:"📚", label:"Story Star",         rarity:.common, how:"Complete 5 lessons total",                           xp:60,  shimmer:Color(hex:0xFFE066)),
+        T(id:"speed_read",      cat:.reading,  emoji:"👁️", label:"Speed Reader",       rarity:.rare,   how:"Finish 3 lessons without using any hints",           xp:90,  shimmer:Color(hex:0x5EE7FF)),
+        T(id:"detective",       cat:.reading,  emoji:"🔍", label:"Detail Detective",   rarity:.epic,   how:"Finish 7 lessons without using any hints",           xp:140, shimmer:Color(hex:0xFF8AD8)),
+        T(id:"bookworm",        cat:.reading,  emoji:"🐛", label:"Bookworm",           rarity:.common, how:"Complete 10 lessons total",                          xp:60,  shimmer:Color(hex:0xFFE066)),
+        T(id:"no_hints",        cat:.reading,  emoji:"💡", label:"No Hints Needed",    rarity:.rare,   how:"Finish 5 lessons without using any hints",           xp:90,  shimmer:Color(hex:0x5EE7FF)),
+        T(id:"scholar",         cat:.reading,  emoji:"📜", label:"Scholar",            rarity:.epic,   how:"Complete 25 lessons total",                          xp:140, shimmer:Color(hex:0xA78BFA)),
+        // STREAKS
+        T(id:"streak_7",        cat:.streaks,  emoji:"🔥", label:"7-Day Streak",       rarity:.common, how:"Study 7 days in a row",                              xp:70,  shimmer:Color(hex:0xFF8A4C)),
+        T(id:"streak_14",       cat:.streaks,  emoji:"🌡️", label:"14-Day Streak",      rarity:.rare,   how:"Study 14 days in a row",                             xp:120, shimmer:Color(hex:0xFF8A4C)),
+        T(id:"quick_fox",       cat:.streaks,  emoji:"🐆", label:"Quick Fox",          rarity:.rare,   how:"Complete a lesson perfectly with no hints",          xp:80,  shimmer:Color(hex:0xFFE066)),
+        T(id:"hot_streak",      cat:.streaks,  emoji:"🌋", label:"Hot Streak",         rarity:.epic,   how:"Study 21 days in a row",                             xp:200, shimmer:Color(hex:0xFF8A4C)),
+        T(id:"streak_30",       cat:.streaks,  emoji:"🌊", label:"30-Day Streak",      rarity:.epic,   how:"Study 30 days in a row",                             xp:220, shimmer:Color(hex:0x5EE7FF)),
+        T(id:"iron_will",       cat:.streaks,  emoji:"🏋️", label:"Iron Will",          rarity:.legend, how:"Study every day for 60 days",                        xp:500, shimmer:Color(hex:0xA78BFA)),
+        T(id:"symm_star",       cat:.streaks,  emoji:"🦋", label:"Symmetry Star",      rarity:.rare,   how:"Master 5 stars total",                               xp:90,  shimmer:Color(hex:0xFF8AD8)),
+        T(id:"early_bird",      cat:.streaks,  emoji:"🌅", label:"Early Bird",         rarity:.common, how:"Complete a lesson before 8 AM",                      xp:50,  shimmer:Color(hex:0xFFE066)),
+        T(id:"night_owl",       cat:.streaks,  emoji:"🦉", label:"Night Owl",          rarity:.common, how:"Complete a lesson after 9 PM",                       xp:50,  shimmer:Color(hex:0xA78BFA)),
+        // EXPLORER
+        T(id:"first_step",      cat:.explorer, emoji:"👣", label:"First Step",         rarity:.common, how:"Complete your very first lesson",                    xp:40,  shimmer:Color(hex:0xFFE066)),
+        T(id:"rocket_kid",      cat:.explorer, emoji:"🚀", label:"Rocket Kid",         rarity:.common, how:"Visit your first star",                              xp:50,  shimmer:Color(hex:0x5EE7FF)),
+        T(id:"galaxy_voyager",  cat:.explorer, emoji:"🔭", label:"Galaxy Voyager",     rarity:.common, how:"Visit 3 different stars",                            xp:60,  shimmer:Color(hex:0x5EE7FF)),
+        T(id:"space_cadet",     cat:.explorer, emoji:"🪐", label:"Space Cadet",        rarity:.rare,   how:"Visit 10 different stars",                           xp:120, shimmer:Color(hex:0xA78BFA)),
+        T(id:"star_20",         cat:.explorer, emoji:"🌟", label:"Star Lighter",       rarity:.rare,   how:"Light up 20 stars",                                  xp:110, shimmer:Color(hex:0xFFE066)),
+        T(id:"star_captain",    cat:.explorer, emoji:"👨‍🚀", label:"Star Captain",       rarity:.epic,   how:"Light up 30 stars",                                  xp:180, shimmer:Color(hex:0xFFE066)),
+        T(id:"cosmo_scout",     cat:.explorer, emoji:"🌌", label:"Cosmic Scout",       rarity:.rare,   how:"Visit 15 different stars",                           xp:130, shimmer:Color(hex:0x5EE7FF)),
+        T(id:"deep_space",      cat:.explorer, emoji:"🛸", label:"Deep Space",         rarity:.rare,   how:"Master stars in 3 different constellations",         xp:130, shimmer:Color(hex:0xA78BFA)),
+        T(id:"universe_child",  cat:.explorer, emoji:"🌍", label:"Universe Child",     rarity:.epic,   how:"Master stars in 5 different constellations",         xp:170, shimmer:Color(hex:0x5EE7FF)),
+        T(id:"galaxy_brain",    cat:.explorer, emoji:"🌀", label:"Galaxy Brain",       rarity:.legend, how:"Master 40 stars across all subjects",                xp:400, shimmer:Color(hex:0xFF8AD8)),
+        // SECRET
+        T(id:"hist_hero",       cat:.secret,   emoji:"🦖", label:"History Hero",       rarity:.rare,   how:"???",                                                xp:100, shimmer:Color(hex:0xA78BFA)),
+        T(id:"nova_friend",     cat:.secret,   emoji:"🐾", label:"Nova's Pal",         rarity:.epic,   how:"???",                                                xp:200, shimmer:Color(hex:0xFF8AD8)),
+        T(id:"rainbow",         cat:.secret,   emoji:"🌈", label:"Rainbow Seeker",     rarity:.epic,   how:"???",                                                xp:200, shimmer:Color(hex:0xA78BFA)),
+        T(id:"all_stars",       cat:.secret,   emoji:"🌠", label:"All Stars",          rarity:.legend, how:"???",                                                xp:500, shimmer:Color(hex:0x5EE7FF)),
+        T(id:"champ",           cat:.secret,   emoji:"🏆", label:"Champion",           rarity:.legend, how:"???",                                                xp:500, shimmer:Color(hex:0xFFE066)),
+        T(id:"midnight_nova",   cat:.secret,   emoji:"🌙", label:"Midnight Nova",      rarity:.epic,   how:"???",                                                xp:200, shimmer:Color(hex:0xA78BFA)),
+        T(id:"nova_apprentice", cat:.secret,   emoji:"🔰", label:"Nova's Apprentice",  rarity:.rare,   how:"???",                                                xp:100, shimmer:Color(hex:0xFFE066)),
+        T(id:"star_collector",  cat:.secret,   emoji:"🎪", label:"Star Collector",     rarity:.rare,   how:"???",                                                xp:120, shimmer:Color(hex:0xFF8AD8)),
+        T(id:"legendary_path",  cat:.secret,   emoji:"🏅", label:"Legendary Path",     rarity:.legend, how:"???",                                                xp:400, shimmer:Color(hex:0xFFE066)),
+        T(id:"xp_master",       cat:.secret,   emoji:"💫", label:"XP Master",          rarity:.legend, how:"???",                                                xp:350, shimmer:Color(hex:0x5EE7FF)),
+    ]
 }
 
 // MARK: - Main StickerBookView
@@ -129,13 +170,19 @@ enum StarStickerData {
 struct StickerBookView: View {
     let onBack: () -> Void
 
-    @State private var selectedCat: StickerCat? = nil  // nil = All
+    @State private var selectedCat: StickerCat? = nil
     @State private var detail: StarStickerItem? = nil
     @State private var visible = false
+    @Environment(UserSettings.self) var userSettings
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
 
-    private var allItems: [StarStickerItem] { StarStickerData.all }
+    private var allItems: [StarStickerItem] {
+        StarStickerData.items(
+            unlocked: userSettings.unlockedStickers,
+            dates: userSettings.stickerEarnedDates
+        )
+    }
     private var filtered: [StarStickerItem] {
         guard let cat = selectedCat else { return allItems }
         return allItems.filter { $0.cat == cat }
@@ -147,13 +194,12 @@ struct StickerBookView: View {
         }
     }
 
-    private var unlockedCount: Int { allItems.filter { $0.unlocked }.count }
-    private var totalCount: Int { allItems.count }
+    private var unlockedCount: Int { userSettings.unlockedStickers.count }
+    private var totalCount: Int { StarStickerData.totalCount }
     private var progressPct: Double { Double(unlockedCount) / Double(totalCount) }
 
     var body: some View {
         ZStack {
-            // Background
             Color(hex: 0x08041A).ignoresSafeArea()
             nebulaBg.ignoresSafeArea()
 
@@ -199,7 +245,6 @@ struct StickerBookView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Back button
             Button(action: {
                 withAnimation { visible = false }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { onBack() }
@@ -218,7 +263,6 @@ struct StickerBookView: View {
             .buttonStyle(.plain)
             .padding(.bottom, 14)
 
-            // Title row
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("🎟️ COLLECTION")
@@ -253,7 +297,6 @@ struct StickerBookView: View {
             }
             .padding(.bottom, 12)
 
-            // Progress bar
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.white.opacity(0.07))
@@ -267,9 +310,7 @@ struct StickerBookView: View {
                 }
             }
             .frame(height: 8)
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
+            .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
             .padding(.bottom, 6)
 
             Text("\(Int((progressPct * 100).rounded()))% collected · \(totalCount - unlockedCount) stickers left to find")
@@ -277,40 +318,42 @@ struct StickerBookView: View {
                 .foregroundColor(.white.opacity(0.5))
                 .padding(.bottom, 14)
 
-            // Recently earned banner
-            HStack(spacing: 12) {
-                Text("🦋").font(.system(size: 26))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("✨ JUST EARNED!")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .tracking(0.4)
+            // Recently earned banner — shows the most-recently dated unlocked sticker
+            if let recent = recentlyEarned {
+                HStack(spacing: 12) {
+                    Text(recent.emoji).font(.system(size: 26))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("✨ JUST EARNED!")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .tracking(0.4)
+                            .foregroundColor(Color(hex: 0xFF8AD8))
+                        Text("\(recent.label) — you're on a roll! 🎉")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundColor(.white)
+                    }
+                    Spacer()
+                    Text("+\(recent.xp) XP")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundColor(Color(hex: 0xFF8AD8))
-                    Text("Symmetry Star — you're on a roll! 🎉")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(Color(hex: 0xFF8AD8, opacity: 0.18)))
+                        .overlay(Capsule().stroke(Color(hex: 0xFF8AD8, opacity: 0.4), lineWidth: 1))
                 }
-                Spacer()
-                Text("+90 XP")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(hex: 0xFF8AD8))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Capsule().fill(Color(hex: 0xFF8AD8, opacity: 0.18)))
-                    .overlay(Capsule().stroke(Color(hex: 0xFF8AD8, opacity: 0.4), lineWidth: 1))
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [Color(hex: 0xFF8AD8, opacity: 0.18), Color(hex: 0xA78BFA, opacity: 0.12)],
+                            startPoint: .topLeading, endPoint: .bottomTrailing
+                        ))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color(hex: 0xFF8AD8, opacity: 0.4), lineWidth: 1.5)
+                )
+                .padding(.bottom, 14)
             }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(LinearGradient(
-                        colors: [Color(hex: 0xFF8AD8, opacity: 0.18), Color(hex: 0xA78BFA, opacity: 0.12)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color(hex: 0xFF8AD8, opacity: 0.4), lineWidth: 1.5)
-            )
-            .padding(.bottom, 14)
 
             // Category pills
             ScrollView(.horizontal, showsIndicators: false) {
@@ -327,24 +370,24 @@ struct StickerBookView: View {
         .padding(.top, 56)
     }
 
+    /// The unlocked sticker whose earnedDate sorts last (most recently added).
+    private var recentlyEarned: StarStickerItem? {
+        allItems
+            .filter { $0.unlocked && $0.earnedDate != nil }
+            .last
+    }
+
     private func categoryPill(id: StickerCat?, label: String, emoji: String) -> some View {
         let active = selectedCat == id
-        let count: Int
-        let total: Int
-        if let cat = id {
-            count = allItems.filter { $0.cat == cat && $0.unlocked }.count
-            total = allItems.filter { $0.cat == cat }.count
-        } else {
-            count = unlockedCount
-            total = totalCount
-        }
+        let catItems = id == nil ? allItems : allItems.filter { $0.cat == id }
+        let catUnlocked = catItems.filter { $0.unlocked }.count
 
         return Button(action: { withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { selectedCat = id } }) {
             HStack(spacing: 5) {
                 Text(emoji).font(.system(size: 12))
-                Text(label)
+                Text(LocalizedStringKey(label))
                     .font(.system(size: 12, weight: .bold, design: .rounded))
-                Text("\(count)/\(total)")
+                Text("\(catUnlocked)/\(catItems.count)")
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1)
@@ -392,7 +435,6 @@ struct StickerBookView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 20) {
                 if selectedCat == nil {
-                    // Group by rarity with section headers
                     ForEach(StickerRarity.allCases, id: \.self) { rarity in
                         let group = sorted.filter { $0.rarity == rarity }
                         if !group.isEmpty {
@@ -400,7 +442,6 @@ struct StickerBookView: View {
                         }
                     }
                 } else {
-                    // Flat grid for single category
                     LazyVGrid(columns: columns, spacing: 8) {
                         ForEach(sorted) { s in
                             StickerCell(sticker: s, isNew: StarStickerData.newIds.contains(s.id), onTap: { detail = $0 })
@@ -419,7 +460,6 @@ struct StickerBookView: View {
 
     private func raritySectionView(rarity: StickerRarity, items: [StarStickerItem]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Section header
             HStack(spacing: 8) {
                 Circle()
                     .fill(rarity.color)
@@ -447,6 +487,18 @@ struct StickerBookView: View {
 
     // MARK: Nova hint
 
+    private var novaHintText: String {
+        let locked = allItems.filter { !$0.unlocked }
+        // Find the closest non-secret locked sticker to unlock
+        if let next = locked.filter({ $0.cat != .secret }).sorted(by: { $0.rarity.sortOrder > $1.rarity.sortOrder }).first {
+            return "You're \(locked.count) stickers away from completing your book! Try to unlock \(next.emoji) \(next.label) next."
+        }
+        if !locked.isEmpty {
+            return "You're so close! Only \(locked.count) secret sticker\(locked.count == 1 ? "" : "s") left. Keep exploring! 🌌"
+        }
+        return "You collected ALL \(totalCount) stickers! You're a true Galaxy Legend! 🏆"
+    }
+
     private var novaHint: some View {
         HStack(alignment: .top, spacing: 12) {
             Text("🦊").font(.system(size: 24))
@@ -454,7 +506,7 @@ struct StickerBookView: View {
                 Text("NOVA SAYS")
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0x5EE7FF))
-                Text("You're \(totalCount - unlockedCount) stickers away from completing your book! Finish the Space Explorer trip next to get 🪐 Space Cadet.")
+                Text(novaHintText)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.8))
                     .lineSpacing(2)

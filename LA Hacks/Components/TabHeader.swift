@@ -18,17 +18,22 @@ struct TabHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(kicker)
+            Text(LocalizedStringKey(kicker))
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .tracking(0.5)
                 .foregroundColor(Color(hex: 0xFFE066))
                 .shadow(color: Color(hex: 0xFFE066, opacity: 0.5), radius: 6)
-            Text("\(emoji) \(title)")
+            // Emoji is rendered verbatim, title is localized separately. Interpolating
+            // the two into a single LocalizedStringKey produced lookup keys like
+            // "🚀 Trips" or " Settings" (leading space) that don't exist in the
+            // translation table, causing the fallback to the English key.
+            (Text(verbatim: emoji.isEmpty ? "" : "\(emoji) ")
+                + Text(LocalizedStringKey(title)))
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .tracking(-0.4)
                 .foregroundColor(.white)
             if let subtitle {
-                Text(subtitle)
+                Text(LocalizedStringKey(subtitle))
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.75))
                     .padding(.top, 4)

@@ -208,12 +208,25 @@ struct LessonView: View {
     @State private var hintShown = false
     @State private var questionKey = 0
     @State private var chatBreakInput: String = ""
+    @State private var outcomes: [PastProblemOutcome] = []
     @FocusState private var chatBreakFocused: Bool
+
+    @State private var stickerQueue: [StarStickerItem] = []
+    @State private var currentStickerToast: StarStickerItem? = nil
 
     enum Phase { case intro, example, practice, chatBreak, celebrate }
 
     private var lesson: LessonContent { lessonFor(node: node) }
-    private var pal: StarPalette { node.status.palette }
+    private var pal: StarPalette {
+        let allNeighborIds: [String] = GalaxyData.constellations.flatMap { c in
+            c.edges.compactMap { e -> String? in
+                if e.a == node.id { return e.b }
+                if e.b == node.id { return e.a }
+                return nil
+            }
+        }
+        return UserSettings.shared.stage(for: node.id, initiallyLocked: node.initiallyLocked, neighborIds: allNeighborIds).palette
+    }
     private var nProbs: Int { lesson.problems.count }
 
     private var progress: Double {
@@ -257,7 +270,23 @@ struct LessonView: View {
             }
             .animation(.spring(response: 0.35, dampingFraction: 0.82), value: bottomInput != nil)
         }
+        .dismissesKeyboard()
         .onAppear { startIntro() }
+        .overlay {
+            if let sticker = currentStickerToast {
+                StickerEarnedToast(sticker: sticker) {
+                    currentStickerToast = nil
+                    if !stickerQueue.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            currentStickerToast = stickerQueue.removeFirst()
+                        }
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: currentStickerToast != nil)
     }
 
     // MARK: - Header
@@ -361,12 +390,15 @@ struct LessonView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 8)
             }
-            .scrollIndicators(.hidden)
+            .scrollIndicators(.visible)
+            .onAppear {
+                proxy.scrollTo("__end", anchor: .bottom)
+            }
             .onChange(of: msgs.count) {
-                withAnimation { proxy.scrollTo("__end") }
+                withAnimation { proxy.scrollTo("__end", anchor: .bottom) }
             }
             .onChange(of: isTyping) {
-                if isTyping { withAnimation { proxy.scrollTo("__end") } }
+                withAnimation { proxy.scrollTo("__end", anchor: .bottom) }
             }
         }
     }
@@ -529,6 +561,15 @@ struct LessonView: View {
         }
         bottomInput = nil
 
+        outcomes.append(PastProblemOutcome(
+            prompt: problem.prompt,
+            correctAnswer: problem.answer,
+            studentAnswer: val,
+            correct: correct,
+            attempts: 1,
+            hintUsed: usedHint
+        ))
+
         if correct {
             streak += 1
             xpGained += (usedHint ? 8 : 15) + (streak >= 2 ? 5 : 0)
@@ -556,6 +597,50 @@ struct LessonView: View {
     private func celebrate() {
         phase = .celebrate
         let capXP = xpGained; let capH = hearts; let capHints = hintsUsed
+        let capOutcomes = outcomes
+        let correctCount = capOutcomes.filter { $0.correct }.count
+        let constellationId = GalaxyData.nodesById[node.id]?.constellationId
+
+        Task {
+            await MemoryStore.shared.recordLesson(
+                node: node,
+                constellationName: GalaxyData.nodesById[node.id]?.constellationName,
+                outcomes: capOutcomes,
+                xpGained: capXP,
+                heartsLeft: capH,
+                hintsUsed: capHints
+            )
+        }
+        UserSettings.shared.recordStudySession(
+            xpEarned: capXP,
+            nodeId: node.id,
+            correctCount: correctCount,
+            totalCount: capOutcomes.count,
+            hintsUsed: capHints,
+            constellationId: constellationId
+        )
+
+        // Show celebration overlay for each newly earned sticker
+        let newIds = UserSettings.shared.recentlyUnlocked
+        if !newIds.isEmpty {
+            let allStickers = StarStickerData.items(
+                unlocked: UserSettings.shared.unlockedStickers,
+                dates: UserSettings.shared.stickerEarnedDates
+            )
+            let newStickers = newIds.compactMap { id in allStickers.first { $0.id == id } }
+            if let first = newStickers.first {
+                NotificationManager.shared.scheduleStickerEarnedNotification(
+                    name: UserSettings.shared.explorerName,
+                    stickerName: first.label,
+                    emoji: first.emoji
+                )
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    stickerQueue = Array(newStickers.dropFirst())
+                    currentStickerToast = first
+                }
+            }
+        }
+
         sendNova([
             "🎉 Lesson complete, superstar!",
             "You answered all \(nProbs) questions. Here's how you did:",
@@ -676,18 +761,11 @@ struct NovaAvatarView: View {
     let pal: StarPalette
 
     var body: some View {
-        Text("✦")
-            .font(.system(size: size * 0.42, weight: .bold))
-            .foregroundColor(.white)
+        Image("Nova Image")
+            .resizable()
+            .scaledToFit()
             .frame(width: size, height: size)
-            .background(
-                Circle().fill(LinearGradient(
-                    colors: [pal.mid, pal.halo],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-            )
-            .overlay(Circle().stroke(pal.mid.opacity(0.3), lineWidth: 2))
-            .shadow(color: pal.glow, radius: 8)
+            .shadow(color: pal.glow, radius: size * 0.3)
     }
 }
 

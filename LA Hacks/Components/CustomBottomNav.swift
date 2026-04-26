@@ -17,7 +17,6 @@ struct CustomBottomNav: View {
         (.galaxy,  "Galaxy", "🌌"),
         (.study,   "Quests", "🎯"),
         (.nova,    "Nova",   "🦊"),
-        (.profile, "Me",     "👤"),
     ]
 
     var body: some View {

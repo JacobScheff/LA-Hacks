@@ -16,17 +16,23 @@ struct ConstellationModal: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    private var counts: (mastered: Int, learning: Int, gap: Int, locked: Int) {
-        var m = 0, l = 0, g = 0, k = 0
+    private var counts: (shining: Int, twinkling: Int, sleepy: Int, locked: Int) {
+        let settings = UserSettings.shared
+        var neighborMap: [String: [String]] = [:]
+        for e in constellation.edges {
+            neighborMap[e.a, default: []].append(e.b)
+            neighborMap[e.b, default: []].append(e.a)
+        }
+        var sh = 0, tw = 0, sl = 0, lo = 0
         for n in constellation.nodes {
-            switch n.status {
-            case .mastered: m += 1
-            case .learning: l += 1
-            case .gap:      g += 1
-            case .locked:   k += 1
+            switch settings.stage(for: n.id, initiallyLocked: n.initiallyLocked, neighborIds: neighborMap[n.id] ?? []) {
+            case .shining:   sh += 1
+            case .twinkling: tw += 1
+            case .sleepy:    sl += 1
+            case .locked:    lo += 1
             }
         }
-        return (m, l, g, k)
+        return (sh, tw, sl, lo)
     }
 
     var body: some View {
@@ -132,12 +138,20 @@ struct ConstellationModal: View {
             )
 
             Canvas { ctx, _ in
+                let settings = UserSettings.shared
+                var neighborMap: [String: [String]] = [:]
+                for e in constellation.edges {
+                    neighborMap[e.a, default: []].append(e.b)
+                    neighborMap[e.b, default: []].append(e.a)
+                }
                 let nodeMap = Dictionary(uniqueKeysWithValues: constellation.nodes.map { ($0.id, $0) })
                 for e in constellation.edges {
                     guard let A = nodeMap[e.a], let B = nodeMap[e.b] else { continue }
                     let pa = CGPoint(x: A.x * sc + dx, y: A.y * sc + dy)
                     let pb = CGPoint(x: B.x * sc + dx, y: B.y * sc + dy)
-                    let both = A.status == .mastered && B.status == .mastered
+                    let stageA = settings.stage(for: A.id, initiallyLocked: A.initiallyLocked, neighborIds: neighborMap[A.id] ?? [])
+                    let stageB = settings.stage(for: B.id, initiallyLocked: B.initiallyLocked, neighborIds: neighborMap[B.id] ?? [])
+                    let both = stageA == .shining && stageB == .shining
                     var p = Path()
                     p.move(to: pa); p.addLine(to: pb)
                     let style: StrokeStyle = both
@@ -150,7 +164,8 @@ struct ConstellationModal: View {
                 }
                 for n in constellation.nodes {
                     let p = CGPoint(x: n.x * sc + dx, y: n.y * sc + dy)
-                    let pal = n.status.palette
+                    let nodeStage = settings.stage(for: n.id, initiallyLocked: n.initiallyLocked, neighborIds: neighborMap[n.id] ?? [])
+                    let pal = nodeStage.palette
                     let r1 = n.size * 1.7
                     let r2 = n.size * 0.95
                     let r3 = n.size * 0.45
@@ -276,10 +291,10 @@ struct ConstellationModal: View {
     private var breakdownGrid: some View {
         let c = counts
         return LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
-            cell(emoji: "⭐", label: "Shining", count: c.mastered, palette: StarStatus.mastered.palette)
-            cell(emoji: "🌱", label: "Growing", count: c.learning, palette: StarStatus.learning.palette)
-            cell(emoji: "😴", label: "Sleepy",  count: c.gap,      palette: StarStatus.gap.palette)
-            cell(emoji: "🔒", label: "Locked",  count: c.locked,   palette: StarStatus.locked.palette)
+            cell(emoji: "⭐", label: "Shining",   count: c.shining,   palette: MasteryStage.shining.palette)
+            cell(emoji: "✨", label: "Twinkling", count: c.twinkling, palette: MasteryStage.twinkling.palette)
+            cell(emoji: "😴", label: "Sleepy",    count: c.sleepy,    palette: MasteryStage.sleepy.palette)
+            cell(emoji: "🔒", label: "Locked",    count: c.locked,    palette: MasteryStage.locked.palette)
         }
     }
 
@@ -307,8 +322,16 @@ struct ConstellationModal: View {
     }
 
     private func starRow(_ n: StarNode) -> some View {
-        let pal = n.status.palette
-        let m = n.status == .mastered ? 1.0 : n.status == .locked ? 0.0 : (n.mastery ?? 0.3)
+        let settings = UserSettings.shared
+        var neighborMap: [String: [String]] = [:]
+        for e in constellation.edges {
+            neighborMap[e.a, default: []].append(e.b)
+            neighborMap[e.b, default: []].append(e.a)
+        }
+        let nodeStage = settings.stage(for: n.id, initiallyLocked: n.initiallyLocked, neighborIds: neighborMap[n.id] ?? [])
+        let pal = nodeStage.palette
+        let rawMastery = settings.starMastery[n.id] ?? 0.0
+        let m = nodeStage == .shining ? 1.0 : nodeStage == .locked ? 0.0 : rawMastery
         return Button(action: { onJumpToStar(n) }) {
             HStack(spacing: 12) {
                 ZStack {

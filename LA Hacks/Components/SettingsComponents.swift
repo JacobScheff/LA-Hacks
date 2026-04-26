@@ -15,7 +15,7 @@ struct SettingsSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(.system(size: 12, weight: .bold, design: .rounded))
                 .tracking(0.4)
                 .textCase(.uppercase)
@@ -41,7 +41,7 @@ struct SettingsLabel: View {
     init(_ text: String) { self.text = text }
 
     var body: some View {
-        Text(text)
+        Text(LocalizedStringKey(text))
             .font(.system(size: 11, weight: .semibold, design: .rounded))
             .tracking(0.4)
             .textCase(.uppercase)
@@ -65,8 +65,8 @@ struct ToggleRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(label).font(.system(size: 14, weight: .semibold, design: .rounded))
-                Text(sub).font(.system(size: 11, design: .rounded)).foregroundColor(.white.opacity(0.5))
+                Text(LocalizedStringKey(label)).font(.system(size: 14, weight: .semibold, design: .rounded))
+                Text(LocalizedStringKey(sub)).font(.system(size: 11, design: .rounded)).foregroundColor(.white.opacity(0.5))
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 

@@ -11,7 +11,7 @@ import Combine
 // MARK: - Tab routing
 
 enum GalaxyTab: String, Hashable {
-    case galaxy, study, nova, profile
+    case galaxy, study, nova
 }
 
 /// App-level state shared between Galaxy + tabs (so an upload-grown
@@ -22,18 +22,40 @@ final class GalaxyState: ObservableObject {
     @Published var pendingNewIds: Set<String> = []
 
     var stats: (mastered: Int, gaps: Int, learning: Int) {
+        let all = computeAllStages()
         var m = 0, g = 0, l = 0
-        for c in constellations {
-            for n in c.nodes {
-                switch n.status {
-                case .mastered: m += 1
-                case .gap:      g += 1
-                case .learning: l += 1
-                case .locked:   break
-                }
+        for stage in all.values {
+            switch stage {
+            case .shining:   m += 1
+            case .sleepy:    g += 1
+            case .twinkling: l += 1
+            case .locked:    break
             }
         }
         return (m, g, l)
+    }
+
+    /// Computes the live MasteryStage for every node using UserSettings.starMastery + edge graph.
+    func computeAllStages() -> [String: MasteryStage] {
+        let settings = UserSettings.shared
+        var neighborIds: [String: [String]] = [:]
+        for c in constellations {
+            for e in c.edges {
+                neighborIds[e.a, default: []].append(e.b)
+                neighborIds[e.b, default: []].append(e.a)
+            }
+        }
+        for e in GalaxyData.bridges {
+            neighborIds[e.a, default: []].append(e.b)
+            neighborIds[e.b, default: []].append(e.a)
+        }
+        var stages: [String: MasteryStage] = [:]
+        for c in constellations {
+            for n in c.nodes {
+                stages[n.id] = settings.stage(for: n.id, initiallyLocked: n.initiallyLocked, neighborIds: neighborIds[n.id] ?? [])
+            }
+        }
+        return stages
     }
 
     func nodesById() -> [String: (node: StarNode, constellationId: String, constellationName: String, constellationEmoji: String)] {
@@ -51,7 +73,10 @@ struct LearningGalaxyView: View {
     @State private var tab: GalaxyTab = .galaxy
     @State private var trainingNode: StarNode?
     @State private var lessonNode: StarNode?
+    @State private var showMe = false
     @StateObject private var state = GalaxyState()
+    @State private var contentID = UUID()
+    @Environment(UserSettings.self) var userSettings
 
     init() {
         let bar = UITabBarAppearance()
@@ -72,9 +97,10 @@ struct LearningGalaxyView: View {
     var body: some View {
         TabView(selection: $tab) {
             Tab(value: GalaxyTab.galaxy) {
-                GalaxyScreen(onTrain: { trainingNode = $0 })
+                GalaxyScreen(onTrain: { trainingNode = $0 }, onProfile: { showMe = true })
                     .environmentObject(state)
                     .ignoresSafeArea()
+                    .id(contentID)
             } label: {
                 Label { Text("Galaxy") } icon: { Image(uiImage: Self.emojiTabIcon("🌌")) }
             }
@@ -82,9 +108,10 @@ struct LearningGalaxyView: View {
             Tab(value: GalaxyTab.study) {
                 StudyTab(onBeginQuest: {
                     trainingNode = LearningGalaxyView.makeSyntheticNode(
-                        label: "Adding Slices", emoji: "🍕", status: .gap)
+                        label: "Adding Slices", emoji: "🍕")
                 })
                 .background { tabBackground }
+                .id(contentID)
             } label: {
                 Label { Text("Quests") } icon: { Image(uiImage: Self.emojiTabIcon("🎯")) }
             }
@@ -92,17 +119,18 @@ struct LearningGalaxyView: View {
             Tab(value: GalaxyTab.nova) {
                 NovaAITab()
                     .background { tabBackground }
+                    .id(contentID)
             } label: {
-                Label { Text("Nova") } icon: { Image(uiImage: Self.emojiTabIcon("🦊")) }
-            }
-
-            Tab(value: GalaxyTab.profile) {
-                YouTab()
-                    .background { tabBackground }
-            } label: {
-                Label { Text("Me") } icon: { Image(uiImage: Self.emojiTabIcon("👤")) }
+                Label { Text("Nova") } icon: {
+                    Image(uiImage: Self.novaTabIcon())
+                }
             }
         }
+        .sheet(isPresented: $showMe) {
+            YouTab()
+                .background { tabBackground }
+        }
+        .onChange(of: userSettings.language) { _, _ in contentID = UUID() }
         .tint(Color(hex: 0xFFE066))
         .preferredColorScheme(.dark)
         .overlay {
@@ -123,6 +151,14 @@ struct LearningGalaxyView: View {
         .animation(.easeOut(duration: 0.3), value: lessonNode?.id)
     }
 
+    static func novaTabIcon(size: CGFloat = 28) -> UIImage {
+        let sz = CGSize(width: size, height: size)
+        let rendered = UIGraphicsImageRenderer(size: sz).image { _ in
+            UIImage(named: "Nova Image")?.draw(in: CGRect(origin: .zero, size: sz))
+        }
+        return rendered.withRenderingMode(.alwaysOriginal)
+    }
+
     static func emojiTabIcon(_ emoji: String) -> UIImage {
         let size = CGSize(width: 32, height: 32)
         let img = UIGraphicsImageRenderer(size: size).image { _ in
@@ -136,12 +172,11 @@ struct LearningGalaxyView: View {
         return img.withRenderingMode(.alwaysOriginal)
     }
 
-    static func makeSyntheticNode(label: String, emoji: String, status: StarStatus) -> StarNode {
+    static func makeSyntheticNode(label: String, emoji: String, initiallyLocked: Bool = false) -> StarNode {
         StarNode(
             id: "synthetic-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))",
             label: label, star: nil, emoji: emoji,
-            x: 0, y: 0, status: status, size: 5,
-            mastery: status == .mastered ? 1.0 : 0.4
+            x: 0, y: 0, initiallyLocked: initiallyLocked, size: 5
         )
     }
 

@@ -31,7 +31,7 @@ struct StickerCell: View {
                                 .blur(radius: 8)
                                 .opacity(0.5)
                         }
-                        Text(locked ? "❓" : sticker.emoji)
+                        Text(locked && sticker.cat == .secret ? "❓" : sticker.emoji)
                             .font(.system(size: 30))
                             .grayscale(locked ? 1 : 0)
                             .opacity(locked ? 0.3 : 1)
@@ -40,7 +40,7 @@ struct StickerCell: View {
                     }
                     .frame(height: 38)
 
-                    Text(locked ? "???" : sticker.label)
+                    Text(locked && sticker.cat == .secret ? "???" : sticker.label)
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundColor(locked ? .white.opacity(0.25) : .white)
                         .multilineTextAlignment(.center)

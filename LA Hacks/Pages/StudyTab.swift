@@ -58,7 +58,7 @@ struct StudyTab: View {
                 }
                 .padding(.horizontal, 16)
             }
-            .padding(.top, 70)
+            .padding(.top, 35)
             .padding(.bottom, 30)
         }
         .scrollIndicators(.hidden)
@@ -173,7 +173,7 @@ struct StudyTab: View {
         .sCard(stroke: q.accent.opacity(0.33), padding: EdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14))
     }
     private func chipButton(label: String, primary: Bool) -> some View {
-        Text(label)
+        Text(LocalizedStringKey(label))
             .font(.system(size: 12, weight: .bold, design: .rounded))
             .foregroundColor(primary ? Color(hex: 0x1A0B40) : .white)
             .padding(.horizontal, 14)

@@ -13,6 +13,7 @@ import WidgetKit
 struct GalaxyScreen: View {
     @EnvironmentObject var state: GalaxyState
     let onTrain: (StarNode) -> Void
+    let onProfile: () -> Void
 
     // Pan + zoom state
     @State private var tx: CGFloat = -50
@@ -28,7 +29,7 @@ struct GalaxyScreen: View {
 
     // Selection / overlays
     @State private var selected: StarNode?
-    @State private var filter: StarStatus? = nil
+    @State private var filter: MasteryStage? = nil
     @State private var modalConstellation: Constellation?
 
     // Filter chip "all" support — kept separate so we can show 'all' as a
@@ -43,10 +44,11 @@ struct GalaxyScreen: View {
     // Telescope warp-in animation
     private enum WarpPhase { case enter, exit, done }
     @State private var warpPhase: WarpPhase = .enter
-    @State private var warpScale: CGFloat = 0.05
+    @State private var warpScale: CGFloat = 0.18
     @State private var warpBlur: CGFloat = 22
     @State private var warpBrightness: Double = -0.7
     @State private var telescopeScale: CGFloat = 1.0
+    @State private var lensRotation: Double = 0
     @State private var lastTabLeave: Date?
     @State private var warpGeneration: Int = 0
 
@@ -66,6 +68,7 @@ struct GalaxyScreen: View {
                 ZStack {
                     SkyCanvas(
                         constellations: state.constellations,
+                        stages: state.computeAllStages(),
                         pendingNewIds: state.pendingNewIds,
                         tx: tx + dragOffset.width + pinchTxCorr,
                         ty: ty + dragOffset.height + pinchTyCorr,
@@ -123,7 +126,7 @@ struct GalaxyScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .allowsHitTesting(false)
 
-                TopHeader(stats: state.stats, filter: filter, onFilter: { filter = $0 }, topInset: safeTop)
+                TopHeader(stats: state.stats, filter: filter, onFilter: { filter = $0 }, onProfile: onProfile, topInset: safeTop)
 
                 if selected == nil {
                     HintPill(gaps: state.stats.gaps)
@@ -185,7 +188,7 @@ struct GalaxyScreen: View {
             .brightness(warpBrightness)
             .overlay(alignment: .center) {
                 if warpPhase != .done {
-                    TelescopeOverlayView(viewW: W, viewH: H)
+                    TelescopeOverlayView(viewW: W, viewH: H, lensRotation: lensRotation)
                         .scaleEffect(telescopeScale, anchor: UnitPoint(x: 0.5, y: 0.48))
                         .allowsHitTesting(false)
                 }
@@ -195,10 +198,11 @@ struct GalaxyScreen: View {
                 guard elapsed > 3.0 else { return }
                 warpGeneration += 1
                 warpPhase = .enter
-                warpScale = 0.05
+                warpScale = 0.18
                 warpBlur = 22
                 warpBrightness = -0.7
                 telescopeScale = 1.0
+                lensRotation = 0
                 startWarp()
             }
             .onDisappear {
@@ -209,6 +213,7 @@ struct GalaxyScreen: View {
                 warpBlur = 0
                 warpBrightness = 0
                 telescopeScale = 1.0
+                lensRotation = 0
             }
         }
         .ignoresSafeArea()
@@ -229,36 +234,25 @@ struct GalaxyScreen: View {
 
     private func startWarp() {
         let gen = warpGeneration
-        // Phase 1: zoom blast from 0.05 to 1.2x (1.0s)
-        withAnimation(.timingCurve(0.22, 1.0, 0.36, 1.0, duration: 1.0)) {
-            warpScale = 1.2
+        withAnimation(.spring(response: 1.3, dampingFraction: 0.52)) {
+            warpScale = 1.0
+        }
+        withAnimation(.timingCurve(0.22, 1.0, 0.36, 1.0, duration: 1.1)) {
             warpBlur = 0
             warpBrightness = 0
         }
-        // Phase 2: snap back below 1.0 (0.18s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            guard warpGeneration == gen else { return }
-            withAnimation(.easeInOut(duration: 0.18)) {
-                warpScale = 0.9
-            }
+        // Lens rings spin fast then decelerate as focus locks in
+        withAnimation(.timingCurve(0.05, 0.9, 0.35, 1.0, duration: 1.3)) {
+            lensRotation = .pi * 2.8
         }
-        // Phase 3: spring settle at 1.0
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.18) {
-            guard warpGeneration == gen else { return }
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
-                warpScale = 1.0
-            }
-        }
-        // Telescope overlay expands away
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.43) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
             guard warpGeneration == gen else { return }
             warpPhase = .exit
-            withAnimation(.timingCurve(0.3, 0.0, 0.8, 1.0, duration: 0.45)) {
+            withAnimation(.timingCurve(0.3, 0.0, 0.8, 1.0, duration: 0.65)) {
                 telescopeScale = 3.4
             }
         }
-        // Done
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.93) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             guard warpGeneration == gen else { return }
             warpPhase = .done
             telescopeScale = 1.0
@@ -404,10 +398,17 @@ struct GalaxyScreen: View {
     // MARK: Widget bridge
 
     static func saveConstellationToWidget(_ c: Constellation) {
+        let settings = UserSettings.shared
+        var neighborMap: [String: [String]] = [:]
+        for e in c.edges {
+            neighborMap[e.a, default: []].append(e.b)
+            neighborMap[e.b, default: []].append(e.a)
+        }
         let nodeMap = Dictionary(uniqueKeysWithValues: c.nodes.map { ($0.id, $0) })
         let nodesArr: [[String: Any]] = c.nodes.map { n in
-            ["x": Double(n.x), "y": Double(n.y),
-             "status": n.status.rawValue, "size": Double(n.size)]
+            let stage = settings.stage(for: n.id, initiallyLocked: n.initiallyLocked, neighborIds: neighborMap[n.id] ?? [])
+            return ["x": Double(n.x), "y": Double(n.y),
+                    "status": stage.rawValue, "size": Double(n.size)]
         }
         let edgesArr: [[String: Any]] = c.edges.compactMap { e in
             guard let a = nodeMap[e.a], let b = nodeMap[e.b] else { return nil }
