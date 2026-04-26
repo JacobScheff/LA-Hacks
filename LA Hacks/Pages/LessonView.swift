@@ -1566,6 +1566,13 @@ struct LessonView: View {
             constellationId: constellationId
         )
 
+        // Notify QuestStore so the Quests tab can mark this quest as complete.
+        NotificationCenter.default.post(
+            name: .lessonCompleted,
+            object: nil,
+            userInfo: ["nodeId": node.id, "xp": capXP]
+        )
+
         // Show celebration overlay for each newly earned sticker
         let newIds = UserSettings.shared.recentlyUnlocked
         if !newIds.isEmpty {
