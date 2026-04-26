@@ -125,7 +125,6 @@ struct SettingsTab: View {
             .padding(.bottom, 30)
         }
         .scrollIndicators(.hidden)
-        .dismissesKeyboard()
         .foregroundColor(.white)
         .onAppear {
             let parsed = Self.parseNotifTime(userSettings.notifTime)
