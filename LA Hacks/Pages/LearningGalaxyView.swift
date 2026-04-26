@@ -106,9 +106,9 @@ struct LearningGalaxyView: View {
             }
 
             Tab(value: GalaxyTab.study) {
-                StudyTab(onBeginQuest: {
-                    trainingNode = LearningGalaxyView.makeSyntheticNode(
-                        label: "Adding Slices", emoji: "🍕")
+                StudyTab(onBeginQuest: { node in
+                    // Launch the lesson directly (quests skip the training-overview sheet).
+                    lessonNode = node
                 })
                 .background { tabBackground }
                 .id(contentID)
