@@ -317,13 +317,7 @@ struct UploadModal: View {
                     y: geo.safeAreaInsets.top + (geo.size.height - geo.safeAreaInsets.top - geo.safeAreaInsets.bottom) / 2 - 20
                 )
             }
-<<<<<<< HEAD
-            .dismissesKeyboard()
-
-            footer
-=======
             .ignoresSafeArea()
->>>>>>> 375dfe5b2f235de72a7a4adffec66d180de8d8d3
         }
         .transition(.opacity.combined(with: .scale(scale: 0.96)))
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: true)
