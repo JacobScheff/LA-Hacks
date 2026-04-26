@@ -4,6 +4,7 @@
 //
 //  Created by Yirui Song on 4/25/26.
 //
+//
 
 import Foundation
 import NaturalLanguage
@@ -11,7 +12,6 @@ import Security
 
 // MARK: - Supporting Types
 
-/// A single knowledge chunk retrieved from the galaxy graph and injected into the prompt.
 struct RAGChunk {
     let constellationID: String
     let constellationName: String
@@ -23,53 +23,38 @@ struct RAGChunk {
     let relevanceScore: Float
 }
 
-/// A single conversation turn stored in history for multi-turn context.
 struct ChatMessage: Identifiable {
     enum Role { case user, assistant }
-    let id = UUID()
+    let id: UUID = UUID()
     let role: Role
     let content: String
 }
 
-/// Per-request context injected by the calling view.
 struct PipelineContext {
-    /// ID of the constellation currently in focus (e.g. "fractions").
     var activeConstellationID: String?
-    /// ID of the star node the student just tapped (e.g. "equiv").
     var activeStarID: String?
-    /// Student display name used inside the system prompt.
     var studentName: String = "Explorer"
-    /// Recent conversation turns (newest last). Injected by the view's history buffer.
     var history: [ChatMessage] = []
 }
 
-/// Outcome of one full pipeline run, delivered to the UI via `onComplete`.
 struct PipelineResult {
     enum Status { case success, filteredByGuard, modelError }
     let text: String
     let status: Status
-    /// Which RAG chunks were injected for this run (useful for debug overlays).
     let ragChunksUsed: [RAGChunk]
     let error: Error?
 }
 
 // MARK: - RAGRetriever
 
-/// Retrieves relevant knowledge chunks from the static galaxy graph.
-///
-/// Current strategy: weighted keyword overlap + active-context bonus.
-/// TODO: Replace with on-device vector embeddings (e.g. CoreML sentence encoder)
-///       for semantic similarity instead of exact token matching.
 enum RAGRetriever {
 
-    private static let maxChunks = 3
+    private static let maxChunks = 5   // bumped from 3 to make room for curriculum hits
 
-    /// Returns the top-`maxChunks` most relevant chunks for `query`.
     static func retrieve(query: String, context: PipelineContext) -> [RAGChunk] {
         let tokenizer = NLTokenizer(unit: .word)
         tokenizer.string = query
 
-        // Collect all token strings first
         var queryTokens: [String] = []
         tokenizer.enumerateTokens(in: query.startIndex..<query.endIndex) { tokenRange, _ in
             queryTokens.append(query[tokenRange].lowercased())
@@ -78,9 +63,10 @@ enum RAGRetriever {
 
         var scored: [(chunk: RAGChunk, score: Float)] = []
 
+        // ── 1. Galaxy graph nodes (original source) ──────────────────────────
         for constellation in GalaxyData.constellations {
             for star in constellation.nodes {
-                let score = relevanceScore(
+                let score = galaxyScore(
                     tokens: queryTokens,
                     constellation: constellation,
                     star: star,
@@ -103,22 +89,53 @@ enum RAGRetriever {
             }
         }
 
+        // ── 2. Scanned curriculum windows from MemoryStore ───────────────────
+        // Each window is a plain-text string produced by CurriculumChunk.ragChunks().
+        // We score them with simple keyword overlap and inject the top hits as
+        // synthetic RAGChunk objects so the existing prompt-builder handles them.
+        let stopwords: Set<String> = [
+            "a","an","the","is","are","do","how","what","i","me","my","of","to","and","or","in","it"
+        ]
+        let significantTokens = queryTokens.filter { !stopwords.contains($0) }
+
+        for (idx, window) in MemoryStore.shared.allRAGWindows().enumerated() {
+            let lower = window.lowercased()
+            let hits = significantTokens.filter { lower.contains($0) }
+            guard !hits.isEmpty else { continue }
+
+            var score = Float(hits.count)
+            // Small recency bonus — windows at lower index are from newer scans
+            score += max(0, Float(5 - idx)) * 0.2
+
+            scored.append((
+                RAGChunk(
+                    constellationID: "curriculum",
+                    constellationName: "Uploaded Curriculum",
+                    starID: "scan-window-\(idx)",
+                    starLabel: "Document Window \(idx + 1)",
+                    course: "Curriculum",
+                    blurb: String(window.prefix(300)),   // blurb = first 300 chars of window
+                    skyStory: window,                    // full window text for prompt injection
+                    relevanceScore: score
+                ),
+                score
+            ))
+        }
+
         return scored
             .sorted { $0.score > $1.score }
             .prefix(maxChunks)
             .map(\.chunk)
     }
 
-    // MARK: - Scoring
+    // MARK: - Galaxy scoring (unchanged logic)
 
-    /// Scores a single star against the tokenized query plus active-context bonuses.
-    private static func relevanceScore(
+    private static func galaxyScore(
         tokens: [String],
         constellation: Constellation,
         star: StarNode,
         context: PipelineContext
     ) -> Float {
-        // Build a searchable target from ALL text fields, not just label + name
         let target = [
             star.label,
             constellation.name,
@@ -127,12 +144,12 @@ enum RAGRetriever {
             constellation.course
         ].joined(separator: " ").lowercased()
 
-        let stopwords: Set<String> = ["a","an","the","is","are","do","how","what","i","me","my","of","to","and","or","in","it"]
-
+        let stopwords: Set<String> = [
+            "a","an","the","is","are","do","how","what","i","me","my","of","to","and","or","in","it"
+        ]
         let matchCount = tokens.filter { !stopwords.contains($0) && target.contains($0) }.count
         var score = Float(matchCount)
 
-        // Active-context bonus
         if constellation.id == context.activeConstellationID { score += 2.0 }
         if star.id == context.activeStarID { score += 3.0 }
 
@@ -140,11 +157,11 @@ enum RAGRetriever {
     }
 }
 
-// MARK: - RAG Pipeline
+// MARK: - RAGPipeline
 
 enum RAGPipeline {
 
-    // MARK: - System Prompt Template
+    // MARK: - System Prompt
 
     private static func buildSystemPrompt(chunks: [RAGChunk], context: PipelineContext) -> String {
         var prompt = """
@@ -166,12 +183,21 @@ enum RAGPipeline {
         The student's name is \(context.studentName). 🌟
         """
 
-        // Inject RAG context if available
-        if !chunks.isEmpty {
-            prompt += "\n\n## 📚 Curriculum Knowledge (Source of Truth)\n"
-            prompt += "Use ONLY the following curriculum content to answer. Stay grounded in this material:\n\n"
+        // ── Scanned curriculum (highest priority — real uploaded schoolwork) ──
+        let curriculumContext = MemoryStore.shared.curriculumContextForPrompt()
+        if !curriculumContext.isEmpty {
+            prompt += "\n\n\(curriculumContext)"
+            prompt += "\n⚠️ When a question relates to the uploaded curriculum above, ALWAYS use it as your primary source. Quote specific details when helpful.\n"
+        }
 
-            for chunk in chunks {
+        // ── Galaxy graph RAG chunks ───────────────────────────────────────────
+        // Separate curriculum hits (already injected above) from galaxy hits
+        let galaxyChunks = chunks.filter { $0.constellationID != "curriculum" }
+        let curriculumHits = chunks.filter { $0.constellationID == "curriculum" }
+
+        if !galaxyChunks.isEmpty {
+            prompt += "\n\n## 🌌 Galaxy Knowledge\n"
+            for chunk in galaxyChunks {
                 prompt += """
                 Subject: \(chunk.course)
                 Topic: \(chunk.constellationName) — \(chunk.starLabel)
@@ -182,7 +208,17 @@ enum RAGPipeline {
             }
         }
 
-        // Active focus context
+        // Curriculum RAG hits = the matched windows from the student's scan.
+        // Injected here as extra grounding even though the full curriculum
+        // block is already above — these are the *most relevant* passages.
+        if !curriculumHits.isEmpty {
+            prompt += "\n\n## 📄 Most Relevant Curriculum Passages (matched to this question)\n"
+            for hit in curriculumHits {
+                prompt += "---\n\(hit.skyStory)\n"
+            }
+        }
+
+        // ── Active focus ─────────────────────────────────────────────────────
         if let constellationID = context.activeConstellationID {
             prompt += "\nThe student is currently studying: \(constellationID)"
             if let starID = context.activeStarID {
@@ -191,22 +227,27 @@ enum RAGPipeline {
             prompt += ". Try to relate your answer back to this topic.\n"
         }
 
-        // Conversation history
+        // ── Conversation history ─────────────────────────────────────────────
         if !context.history.isEmpty {
             prompt += "\n## Recent Conversation\n"
             for message in context.history.suffix(6) {
-                let roleLabel = message.role == .user ? "\(context.studentName)" : "Nova"
+                let roleLabel = message.role == .user ? context.studentName : "Nova"
                 prompt += "\(roleLabel): \(message.content)\n"
             }
+        }
+
+        // ── Student memory (past lessons, preferences, mistakes) ─────────────
+        let memContext = MemoryStore.shared.contextForPrompt()
+        if !memContext.isEmpty {
+            prompt += "\n## 🧠 Student Memory\n\(memContext)\n"
         }
 
         prompt += "\nNow respond to \(context.studentName)'s message below. Remember: 3–4 sentences max! 🚀\n"
         return prompt
     }
 
-    // MARK: - Run Pipeline
+    // MARK: - Run
 
-    /// Retrieves RAG chunks, builds an enhanced system prompt, and calls runModel.
     static func run(
         userQuery: String,
         context: PipelineContext,
@@ -214,7 +255,7 @@ enum RAGPipeline {
         onStream: @escaping (String) -> Void,
         onComplete: @escaping (PipelineResult) -> Void
     ) {
-        // 1. INPUT GUARD — before any retrieval or model work
+        // 1. Input guard
         let inputResult = InputContentFilter.evaluate(query: userQuery, context: context)
         switch inputResult.verdict {
         case .blocked:
@@ -226,17 +267,17 @@ enum RAGPipeline {
             ))
             return
         case .redirect, .pass:
-            break // continue with sanitizedQuery below
+            break
         }
         let effectiveQuery = inputResult.sanitizedQuery ?? userQuery
 
-        // 2. Retrieve relevant chunks (using sanitized query if redirected)
+        // 2. Retrieve — now searches both galaxy nodes AND curriculum windows
         let chunks = RAGRetriever.retrieve(query: effectiveQuery, context: context)
 
-        // 3. Build enhanced system prompt
+        // 3. System prompt (includes full curriculum block + matched windows)
         let systemPrompt = buildSystemPrompt(chunks: chunks, context: context)
 
-        // 4. Combine into a single prompt string for the model
+        // 4. Assemble full prompt
         let fullPrompt = """
         <system>
         \(systemPrompt)
@@ -249,9 +290,8 @@ enum RAGPipeline {
         <assistant>
         """
 
-        // 5. Stream model response into a buffer for the output guard
+        // 5. Stream
         var streamBuffer = ""
-
         runModel(
             prompt: fullPrompt,
             onDownload: onDownload,
@@ -260,20 +300,16 @@ enum RAGPipeline {
                 onStream(currentText)
             },
             onComplete: { error in
-                // 6. OUTPUT GUARD — runs on the fully assembled response
+                // 6. Output guard
                 let outputResult = OutputContentFilter.evaluate(
                     response: streamBuffer,
                     context: context
                 )
-
                 let finalStatus: PipelineResult.Status
                 switch outputResult.verdict {
-                case .pass:
-                    finalStatus = error == nil ? .success : .modelError
-                case .rewritten, .replaced:
-                    finalStatus = .filteredByGuard
+                case .pass:     finalStatus = error == nil ? .success : .modelError
+                case .rewritten, .replaced: finalStatus = .filteredByGuard
                 }
-
                 onComplete(PipelineResult(
                     text: outputResult.deliverableText,
                     status: finalStatus,

@@ -334,7 +334,7 @@ struct Onboard: View {
                     // Start ZeticMLangeLLMModel initialization with the download callback
                     sharedModel = try ZeticMLangeLLMModel(
                         // Assuming `personalToken` is a global config variable in your app scope
-                        personalKey: personalToken,
+                        personalKey: ProcessInfo.processInfo.environment["personalToken"] ?? "",
                         name: "changgeun/gemma-4-E2B-it",
                         version: 1,
                         modelMode: .RUN_SPEED,
