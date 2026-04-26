@@ -754,7 +754,6 @@ struct NovaAITab: View {
                     case .modelError:
                         self.rawOutput = "Oops! Nova had a problem: \(result.error?.localizedDescription ?? "unknown error")"
                     case .success:
-<<<<<<< Updated upstream
                       let parsed = self.parsedOutput
                        if parsed.count > spokenLength {
                          let newText = String(parsed.dropFirst(spokenLength))
@@ -764,8 +763,6 @@ struct NovaAITab: View {
                           }
                           spokenLength = parsed.count
                         }
-=======
->>>>>>> Stashed changes
                         break
                     }
                 }
