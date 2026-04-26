@@ -94,11 +94,20 @@ private func freeClusterCenter(avoiding constellations: [Constellation]) -> CGPo
     let outerR: CGFloat = 215
     let bboxPad = minGap / 2
     let probeHalf = outerR + minGap / 2
-    let boxes = constellations.map { $0.boundingRect(padding: bboxPad) }
+
+    let boxes = constellations.map { c -> CGRect in
+        let r = c.boundingRect(padding: bboxPad)
+        let inflateW = r.width * 0.25
+        let inflateH = r.height * 0.25
+        return r.insetBy(dx: -inflateW, dy: -inflateH)
+    }
+
+
     func isFree(_ x: CGFloat, _ y: CGFloat) -> Bool {
         let probe = CGRect(x: x - probeHalf, y: y - probeHalf, width: probeHalf * 2, height: probeHalf * 2)
         return !boxes.contains { $0.intersects(probe) }
     }
+
     let step: CGFloat = 100
     var y = GalaxyData.SKY_H - 150
     while y >= 200 {
@@ -153,8 +162,12 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
         let baseY = target.centroid.y + 90
         let positions = makeNewClusterPositions(count: recipe.topics.count, cx: baseX, cy: baseY)
         let addedNodes: [StarNode] = recipe.topics.enumerated().map { i, t in
-            StarNode(id: "gen-\(now)-\(i)", label: t.label, star: "New ✨", emoji: t.emoji,
-                     x: positions[i].0, y: positions[i].1, status: .gap, size: 5, mastery: 0)
+            StarNode(
+                id: "gen-\(now)-\(i)",
+                label: t.label, star: "New ✨", emoji: t.emoji,
+                x: positions[i].0, y: positions[i].1,
+                initiallyLocked: false, size: 5
+            )
         }
         return GenerationOutcome(
             result: GenerationResult(isNew: false, constellationName: target.name, emoji: target.emoji,
@@ -169,8 +182,12 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
     let positions = makeNewClusterPositions(count: recipe.topics.count, cx: cx, cy: cy)
     let newId = "gen-\(now)"
     let primary: [StarNode] = recipe.topics.enumerated().map { i, t in
-        StarNode(id: "\(newId)-\(i)", label: t.label, star: "New ✨", emoji: t.emoji,
-                 x: positions[i].0, y: positions[i].1, status: .gap, size: 5, mastery: 0)
+        StarNode(
+            id: "\(newId)-\(i)",
+            label: t.label, star: "New ✨", emoji: t.emoji,
+            x: positions[i].0, y: positions[i].1,
+            initiallyLocked: false, status: .gap, size: 5, mastery: 0
+        )
     }
     let neighborPool: [(label: String, emoji: String)] = [
         ("Bonus Idea","🎁"), ("Try This Too","🌱"), ("Cool Detail","🔍"),
@@ -184,9 +201,13 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
         let n = primary[i]
         let ang = Double(i) / Double(neighborCount) * .pi * 2 + .pi / 6
         let dist: CGFloat = 75 + CGFloat(i) * 15
-        return StarNode(id: "\(newId)-nb-\(i)", label: pick.label, star: "Sleepy", emoji: pick.emoji,
-                        x: n.x + CGFloat(cos(ang)) * dist, y: n.y + CGFloat(sin(ang)) * dist,
-                        status: .locked, size: 3.5, mastery: nil)
+        return StarNode(
+            id: "\(newId)-nb-\(i)",
+            label: pick.label, star: "Sleepy", emoji: pick.emoji,
+            x: n.x + CGFloat(cos(ang)) * dist,
+            y: n.y + CGFloat(sin(ang)) * dist,
+            initiallyLocked: true, status: .locked, size: 3.5, mastery: nil
+        )
     }
     var edges: [Edge] = []
     for i in 0..<(primary.count - 1) { edges.append(Edge(a: primary[i].id, b: primary[i + 1].id)) }
@@ -247,13 +268,7 @@ struct UploadModal: View {
     ]
 
     private var canSubmit: Bool {
-        switch tab {
-        case .scan:
-            if case .done = scanStatus { return true }
-            return false
-        case .paste:
-            return !text.trimmingCharacters(in: .whitespaces).isEmpty
-        }
+        !text.trimmingCharacters(in: .whitespaces).isEmpty && scanStatus != .scanning
     }
 
     // MARK: - Body
@@ -377,15 +392,11 @@ struct UploadModal: View {
                     .padding(.top, 16)
             }
 
-            // ── Grow stars button — only appears once content is ready ───
-            if canSubmit {
-                growButton
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 28)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .animation(.spring(response: 0.35, dampingFraction: 0.78), value: canSubmit)
-            }
+            // ── Grow stars button — inside scroll, always visible ──────────
+            growButton
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 28)   // generous bottom so it clears nav bar
         }
     }
 
@@ -594,7 +605,7 @@ struct UploadModal: View {
 
     // MARK: - Grow stars button
 
-    // Only rendered when canSubmit == true — no dimming needed
+
     private var growButton: some View {
         Button(action: { onGenerate(text, fileName) }) {
             HStack(spacing: 8) {
@@ -602,18 +613,23 @@ struct UploadModal: View {
                 Text("Grow stars!")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
             }
-            .foregroundColor(Color(hex: 0x3A2A00))
+
+            .foregroundColor(canSubmit ? Color(hex: 0x3A2A00) : Color(hex: 0x3A2A00).opacity(0.5))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .background(
-                Capsule().fill(LinearGradient(
-                    colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
+                Capsule().fill(
+                    canSubmit
+                    ? AnyShapeStyle(LinearGradient(
+                        colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing))
+                    : AnyShapeStyle(Color(hex: 0xFFE066, opacity: 0.22))
+                )
             )
-            .shadow(color: Color(hex: 0xFFB300, opacity: 0.45), radius: 14, x: 0, y: 5)
+            .shadow(color: canSubmit ? Color(hex: 0xFFB300, opacity: 0.45) : .clear, radius: 14, x: 0, y: 5)
         }
         .buttonStyle(.plain)
+        .disabled(!canSubmit)
     }
 
     // MARK: - OCR

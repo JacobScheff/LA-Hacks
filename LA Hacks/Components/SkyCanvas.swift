@@ -10,13 +10,14 @@ import SwiftUI
 
 struct SkyCanvas: View {
     let constellations: [Constellation]
+    let stages: [String: MasteryStage]
     let pendingNewIds: Set<String>
     let tx: CGFloat
     let ty: CGFloat
     let scale: CGFloat
     let selectedId: String?
     let focusedConstellationId: String?
-    let filter: StarStatus?
+    let filter: MasteryStage?
     let showDiscoverNebula: Bool
 
     /// Called when the user taps the pulsing ➕ in the discover nebula.
@@ -162,7 +163,7 @@ struct SkyCanvas: View {
         let nodes = nodesByIdLocal()
         for e in GalaxyData.bridges {
             guard let A = nodes[e.a], let B = nodes[e.b] else { continue }
-            let both = A.status == .mastered && B.status == .mastered
+            let both = stages[A.id] == .shining && stages[B.id] == .shining
             let mx = (A.x + B.x) / 2 + (B.y - A.y) * 0.08
             let my = (A.y + B.y) / 2 - (B.x - A.x) * 0.08
             var path = Path()
@@ -185,12 +186,14 @@ struct SkyCanvas: View {
 
     private func drawConstellations(ctx: inout GraphicsContext) {
         for c in constellations {
-            let nodeMap = Dictionary(uniqueKeysWithValues: c.nodes.map { ($0.id, $0) })
             for e in c.edges {
-                guard let A = nodeMap[e.a], let B = nodeMap[e.b] else { continue }
-                let bothMastered = A.status == .mastered && B.status == .mastered
-                let eitherLocked = A.status == .locked || B.status == .locked
-                let stroke: Color = bothMastered
+                let stageA = stages[e.a, default: .sleepy]
+                let stageB = stages[e.b, default: .sleepy]
+                let bothShining = stageA == .shining && stageB == .shining
+                let eitherLocked = stageA == .locked || stageB == .locked
+                guard let A = c.nodes.first(where: { $0.id == e.a }),
+                      let B = c.nodes.first(where: { $0.id == e.b }) else { continue }
+                let stroke: Color = bothShining
                     ? Color(hex: 0xFFE066, opacity: 0.7)
                     : eitherLocked
                         ? Color(hex: 0x788296, opacity: 0.18)
@@ -198,7 +201,7 @@ struct SkyCanvas: View {
                 var path = Path()
                 path.move(to: A.point)
                 path.addLine(to: B.point)
-                let style: StrokeStyle = bothMastered
+                let style: StrokeStyle = bothShining
                     ? StrokeStyle(lineWidth: 1.1, lineCap: .round)
                     : StrokeStyle(lineWidth: 0.7, lineCap: .round, dash: [3, 4])
                 ctx.stroke(path, with: .color(stroke), style: style)
@@ -211,15 +214,17 @@ struct SkyCanvas: View {
     private func drawStars(ctx: inout GraphicsContext, t: TimeInterval, scale: CGFloat) {
         for c in constellations {
             for n in c.nodes {
-                let dim = (filter != nil && n.status != filter)
+                let nodeStage = stages[n.id, default: .sleepy]
+                let dim = (filter != nil && nodeStage != filter)
                 let baseOpacity: Double = dim ? 0.18 : 1.0
-                let pal = n.status.palette
+                let pal = nodeStage.palette
                 let r = n.size
                 let isSelected = (selectedId == n.id)
                 let isNew = pendingNewIds.contains(n.id)
                 let popScale: CGFloat = isNew ? CGFloat(min(1.0, 0.6 + 0.4 * (sin(t * 6) + 1) / 2)) : 1.0
 
-                let haloMul: CGFloat = n.status == .mastered ? 6 : n.status == .learning ? 5 : 4
+                // Halo (radial)
+                let haloMul: CGFloat = nodeStage == .shining ? 6 : nodeStage == .twinkling ? 5 : 4
                 let haloR = r * haloMul * popScale
                 let haloRect = CGRect(x: n.x - haloR, y: n.y - haloR, width: haloR * 2, height: haloR * 2)
                 let haloColor = pal.glow
@@ -242,13 +247,18 @@ struct SkyCanvas: View {
                     ctx.stroke(ring, with: .color(pal.mid.opacity(outerOp)), lineWidth: 1.2)
                 }
 
+                // Body — chunky 5-point star, dimmed for locked
                 let bodyR = r * 1.9 * popScale
-                drawFivePointStar(ctx: &ctx, cx: n.x, cy: n.y, size: bodyR,
-                                  fill: pal.mid.opacity(baseOpacity),
-                                  stroke: pal.halo.opacity(baseOpacity * (n.status == .locked ? 0.6 : 1)),
-                                  rotation: n.status == .mastered ? sin(t * 1.0 + Double(n.id.hashValue % 100) * 0.1) * 0.1 : 0)
+                drawFivePointStar(
+                    ctx: &ctx,
+                    cx: n.x, cy: n.y, size: bodyR,
+                    fill: pal.mid.opacity(baseOpacity),
+                    stroke: pal.halo.opacity(baseOpacity * (nodeStage == .locked ? 0.6 : 1)),
+                    rotation: nodeStage == .shining ? sin(t * 1.0 + Double(n.id.hashValue % 100) * 0.1) * 0.1 : 0
+                )
 
-                if n.status == .mastered {
+                // Shining: face overlay (small eyes + smile)
+                if nodeStage == .shining {
                     let eyeR = bodyR * 0.10
                     ctx.fill(Path(ellipseIn: CGRect(x: n.x - bodyR * 0.22 - eyeR, y: n.y - bodyR * 0.05 - eyeR, width: eyeR * 2, height: eyeR * 2)),
                              with: .color(Color(hex: 0x3A2A00, opacity: baseOpacity)))
@@ -262,7 +272,8 @@ struct SkyCanvas: View {
                                style: StrokeStyle(lineWidth: bodyR * 0.07, lineCap: .round))
                 }
 
-                if n.status == .gap {
+                // Sleepy: extra pulsing aura
+                if nodeStage == .sleepy {
                     let phase = (sin(t * 2.1 + Double(n.x) * 0.01) + 1) / 2
                     let gR = r * (2.2 + 2.8 * phase)
                     let gOp = 0.7 - 0.7 * phase
@@ -271,7 +282,8 @@ struct SkyCanvas: View {
                     ctx.stroke(gap, with: .color(pal.halo.opacity(gOp * baseOpacity)), lineWidth: 0.7)
                 }
 
-                if n.status == .learning {
+                // Center bright dot for twinkling
+                if nodeStage == .twinkling {
                     let cR = r * 0.5
                     ctx.fill(Path(ellipseIn: CGRect(x: n.x - cR, y: n.y - cR, width: cR * 2, height: cR * 2)),
                              with: .color(pal.core.opacity(0.9 * baseOpacity)))
@@ -307,14 +319,20 @@ struct SkyCanvas: View {
                     lctx.translateBy(x: n.x, y: chipY)
                     lctx.scaleBy(x: invS, y: invS)
                     let chipRect = CGRect(x: -approxW/2, y: -chipH/2, width: approxW, height: chipH)
-                    lctx.fill(Path(roundedRect: chipRect, cornerRadius: chipH/2),
-                              with: .color(Color(hex: 0x0E1228, opacity: 0.82)))
-                    lctx.stroke(Path(roundedRect: chipRect, cornerRadius: chipH/2),
-                                with: .color(n.status == .locked ? Color(hex: 0xB4BED2, opacity: 0.3) : Color.white.opacity(0.18)),
-                                lineWidth: 0.7)
-                    lctx.draw(Text(labelText).font(.system(size: 9, weight: .semibold, design: .rounded))
-                              .foregroundColor(n.status == .locked ? Color(hex: 0xC8D2E6, opacity: 0.7) : .white),
-                              at: .zero, anchor: .center)
+
+                    lctx.fill(
+                        Path(roundedRect: chipRect, cornerRadius: chipH/2),
+                        with: .color(Color(hex: 0x0E1228, opacity: 0.82))
+                    )
+                    lctx.stroke(
+                        Path(roundedRect: chipRect, cornerRadius: chipH/2),
+                        with: .color(nodeStage == .locked ? Color(hex: 0xB4BED2, opacity: 0.3) : Color.white.opacity(0.18)),
+                        lineWidth: 0.7
+                    )
+                    let label = Text(labelText)
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundColor(nodeStage == .locked ? Color(hex: 0xC8D2E6, opacity: 0.7) : .white)
+                    lctx.draw(label, at: .zero, anchor: .center)
                 }
             }
         }
