@@ -701,11 +701,12 @@ struct NovaAITab: View {
 
     private func runLLM() {
         guard !isProcessing else { return }
+        isPromptFocused = false
         let userPrompt = prompt
         isProcessing = true
         rawOutput = ""
         downloadProgress = 0.0
-        
+
         let completePrompt = "System Prompt:\n" + "\n\n" + "User Prompt:\n" + userPrompt
 
         runModel(
@@ -730,7 +731,7 @@ struct NovaAITab: View {
 
 // MARK: - Gravity N-Body Simulation Loading View
 
-class NBodyEngine: ObservableObject {
+final class NBodyEngine: ObservableObject {
     struct GravityStar {
         var position: CGPoint
         var velocity: CGVector
@@ -833,7 +834,10 @@ class NBodyEngine: ObservableObject {
     }
 }
 
-private struct StarOrbitLoadingView: View {
+struct StarOrbitLoadingView: View {
+    var title: String = "Thinking..."
+    var subtitle: String = "Nova is exploring ideas"
+    var height: CGFloat = 240
     @StateObject private var engine = NBodyEngine()
     
     var body: some View {
@@ -876,14 +880,14 @@ private struct StarOrbitLoadingView: View {
                     )
                 }
             }
-            .frame(height: 240) // Lots of vertical room for the stars to sling around!
+            .frame(height: height) // Lots of vertical room for the stars to sling around!
             .frame(maxWidth: .infinity)
-            
+
             VStack(alignment: .leading, spacing: 2) {
-                Text("Thinking...")
+                Text(title)
                     .font(.system(size: 14, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0x5EE7FF))
-                Text("Nova is exploring ideas")
+                Text(subtitle)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundColor(.white.opacity(0.6))
             }
@@ -913,6 +917,7 @@ private struct StarOrbitLoadingView: View {
 
 struct YouTab: View {
     @State private var showSettings = false
+    @State private var showStickerBook = false
     @Environment(UserSettings.self) var userSettings
 
     /// Deterministic 12 weeks × 7 days heatmap
@@ -926,26 +931,7 @@ struct YouTab: View {
         return out
     }()
 
-    private struct Sticker: Identifiable {
-        let id = UUID()
-        let emoji: String
-        let label: String
-        let unlocked: Bool
-    }
-    private let stickers:[Sticker] = [
-        Sticker(emoji: "🍕", label: "Pizza Pro",    unlocked: true),
-        Sticker(emoji: "🚀", label: "Rocket Kid",   unlocked: true),
-        Sticker(emoji: "🎯", label: "Sharp Shooter",unlocked: true),
-        Sticker(emoji: "🔥", label: "7-Day Streak", unlocked: true),
-        Sticker(emoji: "🦋", label: "Symmetry Star",unlocked: true),
-        Sticker(emoji: "🦊", label: "Quick Fox",    unlocked: true),
-        Sticker(emoji: "🪐", label: "Space Cadet",  unlocked: false),
-        Sticker(emoji: "🧙", label: "Word Wizard",  unlocked: false),
-        Sticker(emoji: "🧊", label: "Cool Cube",    unlocked: false),
-        Sticker(emoji: "🦖", label: "History Hero", unlocked: false),
-        Sticker(emoji: "🏆", label: "Champion",     unlocked: false),
-        Sticker(emoji: "⭐", label: "All Stars",    unlocked: false),
-    ]
+    private var stickers: [StarStickerItem] { Array(StarStickerData.all.prefix(12)) }
 
     private struct Metric: Identifiable {
         let id = UUID()
@@ -957,12 +943,13 @@ struct YouTab: View {
         let sub: String?
         let hue: Color
     }
-    private var earnedCount: Int { stickers.filter { $0.unlocked }.count }
+    private var earnedCount: Int { StarStickerData.unlockedCount }
+    private var totalStickerCount: Int { StarStickerData.all.count }
     private var metrics: [Metric] {[
             Metric(emoji: "⭐", label: "Stars Lit",  value: "23",      total: 47, valueAsInt: 23, sub: nil,         hue: Color(hex: 0xFFE066)),
             Metric(emoji: "🌌", label: "Worlds",     value: "2",       total: 9,  valueAsInt: 2,  sub: nil,         hue: Color(hex: 0xA78BFA)),
             Metric(emoji: "🔥", label: "Streak",     value: "12d",     total: nil,valueAsInt: nil,sub: "best 18d",  hue: Color(hex: 0xFF8A4C)),
-            Metric(emoji: "🏆", label: "Stickers",   value: "\(earnedCount)/\(stickers.count)", total: nil, valueAsInt: nil, sub: nil, hue: Color(hex: 0xFF8AD8)),
+            Metric(emoji: "🏆", label: "Stickers",   value: "\(earnedCount)/\(totalStickerCount)", total: nil, valueAsInt: nil, sub: nil, hue: Color(hex: 0xFF8AD8)),
         ]
     }
 
@@ -981,42 +968,48 @@ struct YouTab: View {
     ]
 
     var body: some View {
-        if showSettings {
-            SettingsTab(onBack: { showSettings = false })
-        } else {
-            profileContent
+        ZStack {
+            if showSettings {
+                SettingsTab(onBack: { showSettings = false })
+            } else {
+                profileContent
+            }
+
+            if showStickerBook {
+                StickerBookView(onBack: { showStickerBook = false })
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
         }
+        .animation(.spring(response: 0.32, dampingFraction: 0.85), value: showStickerBook)
     }
 
     private var profileContent: some View {
-        ZStack(alignment: .topTrailing) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    hero
-                    metricsGrid
-                    stickerBook
-                    heatmapCard
-                    recentBlock
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button(action: { showSettings = true }) {
+                        Text("⚙️")
+                            .font(.system(size: 17))
+                            .frame(width: 36, height: 36)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 16)
                 }
-                .padding(.top, 60)
-                .padding(.bottom, 30)
+                hero
+                metricsGrid
+                stickerBook
+                heatmapCard
+                recentBlock
             }
-            .scrollIndicators(.hidden)
-            .foregroundColor(.white)
-
-            // Gear button (top-right, floats above scroll)
-            Button(action: { showSettings = true }) {
-                Text("⚙️")
-                    .font(.system(size: 17))
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1.5))
-            }
-            .buttonStyle(.plain)
             .padding(.top, 62)
-            .padding(.trailing, 16)
+            .padding(.bottom, 30)
         }
+        .scrollIndicators(.hidden)
+        .foregroundColor(.white)
     }
 
     private var hero: some View {
@@ -1115,13 +1108,24 @@ struct YouTab: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundColor(.white)
                 Spacer()
-                Text("\(earnedCount)/\(stickers.count)")
+                Text("\(earnedCount)/\(totalStickerCount)")
                     .font(.system(size: 12, weight: .bold, design: .rounded))
                     .foregroundColor(Color(hex: 0xFFE066))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(Color(hex: 0xFFE066, opacity: 0.14)))
                     .overlay(Capsule().stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 1))
+
+                Button(action: { showStickerBook = true }) {
+                    Text("See all →")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(Color(hex: 0xA78BFA))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color(hex: 0xA78BFA, opacity: 0.12)))
+                        .overlay(Capsule().stroke(Color(hex: 0xA78BFA, opacity: 0.4), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
             }
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
@@ -1134,24 +1138,12 @@ struct YouTab: View {
         .padding(.bottom, 18)
     }
 
-    private func stickerColors(_ s: Sticker) -> (Color, Color) {
-        switch s.emoji {
-        case "🍕": return (Color(hex: 0xFF8A4C), Color(hex: 0xFFE066))
-        case "🚀": return (Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA))
-        case "🎯": return (Color(hex: 0xFF4FB6), Color(hex: 0xA855F7))
-        case "🔥": return (Color(hex: 0xFF8A4C), Color(hex: 0xFF4FB6))
-        case "🦋": return (Color(hex: 0xFF8AD8), Color(hex: 0x5EE7FF))
-        case "🦊": return (Color(hex: 0xFFE066), Color(hex: 0xFF8A4C))
-        default:   return (Color(hex: 0xA78BFA), Color(hex: 0x5EE7FF))
-        }
-    }
-
-    private func stickerCell(_ s: Sticker) -> some View {
-        let (c1, c2) = stickerColors(s)
+    private func stickerCell(_ s: StarStickerItem) -> some View {
+        let c1 = s.shimmer
+        let c2 = s.rarity.color
         return VStack(spacing: 7) {
             ZStack {
                 if s.unlocked {
-                    // Glow bloom
                     Text(s.emoji)
                         .font(.system(size: 34))
                         .blur(radius: 10)
@@ -1185,7 +1177,7 @@ struct YouTab: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(s.unlocked
                       ? AnyShapeStyle(LinearGradient(
-                            colors:[c1.opacity(0.22), c2.opacity(0.14)],
+                            colors: [c1.opacity(0.22), c2.opacity(0.14)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                       : AnyShapeStyle(Color.white.opacity(0.04)))
         )
@@ -1194,13 +1186,14 @@ struct YouTab: View {
                 .strokeBorder(
                     s.unlocked
                         ? AnyShapeStyle(LinearGradient(
-                            colors:[c1.opacity(0.80), c2.opacity(0.50)],
+                            colors: [c1.opacity(0.80), c2.opacity(0.50)],
                             startPoint: .topLeading, endPoint: .bottomTrailing))
                         : AnyShapeStyle(Color.white.opacity(0.10)),
                     style: StrokeStyle(lineWidth: 1.5, dash: s.unlocked ? [] : [4, 3])
                 )
         )
         .shadow(color: s.unlocked ? c1.opacity(0.38) : .clear, radius: 12, x: 0, y: 4)
+        .onTapGesture { showStickerBook = true }
     }
 
     private var heatmapCard: some View {
@@ -1332,20 +1325,23 @@ struct SettingsTab: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                // Back + header
-                HStack {
-                    Button(action: onBack) {
-                        HStack(spacing: 6) {
-                            Text("←")
-                            Text("Me")
-                        }
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(hex: 0xC8AAF0, opacity: 0.75))
+                Button(action: onBack) {
+                    HStack(spacing: 6) {
+                        Text("←")
+                        Text("Me")
                     }
-                    .buttonStyle(.plain)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 4)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(
+                        Capsule().fill(Color.white.opacity(0.10))
+                    )
+                    .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1.5))
                 }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
 
                 TabHeader(kicker: "⚙️ PREFERENCES", title: "Settings", emoji: "", subtitle: "Make Star Hop yours!")
 
@@ -1437,9 +1433,6 @@ struct SettingsTab: View {
                                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                                 .foregroundColor(.white)
                             Spacer()
-                            Text("Edit ✏️")
-                                .font(.system(size: 12, design: .rounded))
-                                .foregroundColor(.white.opacity(0.4))
                         }
                         .padding(.horizontal, 12).padding(.vertical, 10)
                         .background(

@@ -252,7 +252,7 @@ struct GalaxyScreen: View {
     // Telescope warp-in animation
     private enum WarpPhase { case enter, exit, done }
     @State private var warpPhase: WarpPhase = .enter
-    @State private var warpScale: CGFloat = 0.18
+    @State private var warpScale: CGFloat = 0.05
     @State private var warpBlur: CGFloat = 22
     @State private var warpBrightness: Double = -0.7
     @State private var telescopeScale: CGFloat = 1.0
@@ -401,7 +401,7 @@ struct GalaxyScreen: View {
                 guard elapsed > 3.0 else { return }
                 warpGeneration += 1
                 warpPhase = .enter
-                warpScale = 0.18
+                warpScale = 0.05
                 warpBlur = 22
                 warpBrightness = -0.7
                 telescopeScale = 1.0
@@ -435,21 +435,36 @@ struct GalaxyScreen: View {
 
     private func startWarp() {
         let gen = warpGeneration
-        withAnimation(.spring(response: 1.3, dampingFraction: 0.52)) {
-            warpScale = 1.0
-        }
-        withAnimation(.timingCurve(0.22, 1.0, 0.36, 1.0, duration: 1.1)) {
+        // Phase 1: zoom blast from 0.05 to 1.2x (1.0s)
+        withAnimation(.timingCurve(0.22, 1.0, 0.36, 1.0, duration: 1.0)) {
+            warpScale = 1.2
             warpBlur = 0
             warpBrightness = 0
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.3) {
+        // Phase 2: snap back below 1.0 (0.18s)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            guard warpGeneration == gen else { return }
+            withAnimation(.easeInOut(duration: 0.18)) {
+                warpScale = 0.9
+            }
+        }
+        // Phase 3: spring settle at 1.0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.18) {
+            guard warpGeneration == gen else { return }
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                warpScale = 1.0
+            }
+        }
+        // Telescope overlay expands away
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.43) {
             guard warpGeneration == gen else { return }
             warpPhase = .exit
-            withAnimation(.timingCurve(0.3, 0.0, 0.8, 1.0, duration: 0.65)) {
+            withAnimation(.timingCurve(0.3, 0.0, 0.8, 1.0, duration: 0.45)) {
                 telescopeScale = 3.4
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+        // Done
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.93) {
             guard warpGeneration == gen else { return }
             warpPhase = .done
             telescopeScale = 1.0
@@ -1358,27 +1373,6 @@ private struct TelescopeOverlayView: View {
                 with: .color(Color(red: 0.71, green: 0.82, blue: 1.0, opacity: 0.04)), lineWidth: 0.8
             )
 
-            // Split crosshairs
-            let hairColor = Color(red: 0.78, green: 0.86, blue: 1.0, opacity: 0.18)
-            var hairs = Path()
-            hairs.move(to: CGPoint(x: cx, y: cy - r * 0.95)); hairs.addLine(to: CGPoint(x: cx, y: cy - r * 0.28))
-            hairs.move(to: CGPoint(x: cx, y: cy + r * 0.28)); hairs.addLine(to: CGPoint(x: cx, y: cy + r * 0.95))
-            hairs.move(to: CGPoint(x: cx - r * 0.95, y: cy)); hairs.addLine(to: CGPoint(x: cx - r * 0.28, y: cy))
-            hairs.move(to: CGPoint(x: cx + r * 0.28, y: cy)); hairs.addLine(to: CGPoint(x: cx + r * 0.95, y: cy))
-            ctx.stroke(hairs, with: .color(hairColor), lineWidth: 0.6)
-            ctx.fill(Path(ellipseIn: CGRect(x: cx-2, y: cy-2, width: 4, height: 4)),
-                     with: .color(Color(red: 0.78, green: 0.86, blue: 1.0, opacity: 0.22)))
-
-            // HUD labels
-            let hudColor = Color(red: 0.63, green: 0.78, blue: 1.0, opacity: 0.50)
-            ctx.draw(
-                Text("MAG ×48").font(.system(size: 7, design: .monospaced)).foregroundColor(hudColor),
-                at: CGPoint(x: cx + r * 0.60, y: cy + r * 0.90), anchor: .leading
-            )
-            ctx.draw(
-                Text("FOCUS").font(.system(size: 7, design: .monospaced)).foregroundColor(hudColor),
-                at: CGPoint(x: cx - r * 0.96, y: cy + r * 0.90), anchor: .leading
-            )
         }
         .frame(width: viewW, height: viewH)
     }
