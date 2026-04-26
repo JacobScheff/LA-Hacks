@@ -215,7 +215,7 @@ enum GalaxyData {
             nickname: "Orion's Belt",
             emoji: "🍕",
             course: "Math · Grades 4–5",
-            blurb: "Slice the pizza, share the cake! Fractions cut things into fair pieces.",
+            blurb: "Slice the pizza, share the cake! Fractions cut things into fair pieces. Zorblix loves adding slices.",
             skyStory: "Orion the Hunter strides across winter skies. His belt — three bright stars in a row — is the most famous line in the heavens.",
             centroid: CGPoint(x: 600, y: 340),
             nodes: [
