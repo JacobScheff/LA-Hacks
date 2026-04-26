@@ -48,7 +48,7 @@ func runModel(
             // Initialize Model ONLY if it hasn't been created yet
             if sharedModel == nil {
                 sharedModel = try ZeticMLangeLLMModel(
-                    personalKey: personalToken,
+                    personalKey: ProcessInfo.processInfo.environment["personalToken"] ?? "",
                     name: "changgeun/gemma-4-E2B-it",
                     version: 1,
                     modelMode: LLMModelMode.RUN_SPEED,
@@ -111,8 +111,8 @@ func speak(transcript: String) {
 }
 
 // MARK: - ElevenLabs Config
-let elevenLabsAPIKey = "sk_9993133219a88915031454e242372bfc39abb4fca844c447"
-let elevenLabsVoiceId = "JBFqnCBsd6RMkjVDRZzb" // George — swap for any voice ID
+let elevenLabsAPIKey = ProcessInfo.processInfo.environment["elevenLabsAPIKey"] ?? ""
+let elevenLabsVoiceId = ProcessInfo.processInfo.environment["elevenLabsVoiceId"] ?? ""
 
 // MARK: - ElevenLabs Audio Player
 // Must be global to survive beyond the URLSession callback scope
@@ -190,6 +190,7 @@ func runModelCloud(
     onComplete: @escaping (Error?) -> Void
 ) {
     Task.detached {
+        let gemmaApiKey = ProcessInfo.processInfo.environment["gemmaApiKey"] ?? ""
         let modelName = "gemma-4-31b-it"
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(modelName):streamGenerateContent?alt=sse&key=\(gemmaApiKey)"
         
