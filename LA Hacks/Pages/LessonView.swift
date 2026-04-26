@@ -197,8 +197,6 @@ struct LessonView: View {
     @State private var hintsUsed = 0
     @State private var phase: Phase = .intro
     @State private var questionKey = 0
-    @State private var chatBreakInput: String = ""
-    @FocusState private var chatBreakFocused: Bool
 
     // Adaptive flow state.
     @State private var opening: LessonOpening?
@@ -256,7 +254,6 @@ struct LessonView: View {
         case .intro:     return 0.02
         case .example:   return 0.10
         case .practice:  return nProbs > 0 ? 0.12 + Double(qIdx) / Double(nProbs) * 0.85 : 0.12
-        case .chatBreak: return nProbs > 0 ? 0.12 + Double(qIdx) / Double(nProbs) * 0.85 : 0.12
         case .celebrate: return 1.0
         }
     }
@@ -270,10 +267,7 @@ struct LessonView: View {
                 chatHeader
                 progressStrip
                 chatScroll
-                if phase == .chatBreak {
-                    chatBreakInputArea
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if let inp = bottomInput {
+                if let inp = bottomInput {
                     LessonInputArea(
                         inputKind: inp,
                         pal: pal,
@@ -452,7 +446,7 @@ struct LessonView: View {
                 HStack(spacing: 0) {
                     Text("\(node.emoji) \(node.label)")
                         .foregroundColor(.white.opacity(0.5))
-                    if phase == .practice || phase == .chatBreak {
+                    if phase == .practice {
                         Text(" · Q\(qIdx+1)/\(nProbs)")
                             .foregroundColor(Color(hex: 0xFFCC50, opacity: 0.6))
                     }
@@ -612,40 +606,6 @@ struct LessonView: View {
                 withAnimation { cb() }
             }
         }
-    }
-    
-    private func sendNovaAI(userQuery: String, then: (() -> Void)? = nil) {
-        bottomInput = nil
-        withAnimation(.easeOut(duration: 0.18)) { isTyping = true }
-
-        let context = PipelineContext(
-            activeConstellationID: GalaxyData.nodesById[node.id]?.constellationId,
-            activeStarID: node.id,
-            studentName: "Explorer",
-            history: msgs.compactMap { m in
-                guard !m.isHint && !m.isStats else { return nil }
-                return ChatMessage(
-                    role: m.source == .student ? .user : .assistant,
-                    content: m.text
-                )
-            }
-        )
-
-        RAGPipeline.run(
-            userQuery: userQuery,
-            context: context,
-            onDownload: { _ in },
-            onStream: { _ in },
-            onComplete: { result in
-                DispatchQueue.main.async {
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        isTyping = false
-                        msgs.append(ChatMsg(source: .nova, text: result.text.isEmpty ? result.text : result.text))
-                    }
-                    then?()
-                }
-            }
-        )
     }
 
     // MARK: - Lesson flow
@@ -900,93 +860,6 @@ struct LessonView: View {
                 hintsUsed: capHints
             )
         }
-    }
-    
-    private var chatBreakInputArea: some View {
-        VStack(spacing: 0) {
-            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
-
-            VStack(spacing: 8) {
-                // Row 1: text field + send button
-                HStack(spacing: 8) {
-                    TextField("", text: $chatBreakInput,
-                              prompt: Text("Ask Nova more about this…")
-                                  .foregroundColor(.white.opacity(0.4)))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.white.opacity(0.06))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.white.opacity(0.14), lineWidth: 1.5)
-                        )
-                        .focused($chatBreakFocused)
-                        .onSubmit { sendChatBreakMessage() }
-
-                    Button(action: sendChatBreakMessage) {
-                        Text("→")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .foregroundColor(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
-                                             ? .white.opacity(0.25) : Color(hex: 0x1A0B40))
-                            .frame(width: 48, height: 48)
-                            .background(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
-                                          ? AnyShapeStyle(Color.white.opacity(0.07))
-                                          : AnyShapeStyle(LinearGradient(
-                                                colors: [pal.mid, pal.halo],
-                                                startPoint: .topLeading, endPoint: .bottomTrailing)))
-                            )
-                            .shadow(color: chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty
-                                    ? .clear : pal.glow.opacity(0.6), radius: 10)
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(chatBreakInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-
-                // Row 2: next question button — same total width as row above
-                Button(action: resumeAfterChatBreak) {
-                    Text(qIdx >= nProbs ? "🎉 Finish lesson!" : "Next question →")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: 0x1A0B40))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(
-                            LinearGradient(
-                                colors: [pal.mid, pal.halo],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            )
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .shadow(color: pal.glow.opacity(0.5), radius: 10, x: 0, y: 4)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(EdgeInsets(top: 12, leading: 14, bottom: 28, trailing: 14))
-        }
-        .background(Color(hex: 0x09041E))
-    }
-
-    private func sendChatBreakMessage() {
-        let q = chatBreakInput.trimmingCharacters(in: .whitespaces)
-        guard !q.isEmpty else { return }
-        chatBreakInput = ""
-        chatBreakFocused = false
-
-        withAnimation(.easeOut(duration: 0.18)) {
-            msgs.append(ChatMsg(source: .student, text: q))
-        }
-
-        sendNovaAI(userQuery: q)
-    }
-
-    private func resumeAfterChatBreak() {
-        phase = .practice
-        let done = qIdx >= nProbs
-        if done { celebrate() } else { askQ(qIdx) }
     }
 }
 // MARK: - Copy lines
