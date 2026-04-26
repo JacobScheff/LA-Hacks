@@ -5,10 +5,18 @@
 //  Star Hop! upload-doc → grow-new-stars flow — pick screen.
 //  Ported from project/galaxy-upload.jsx.
 //
+// Floating centered popup (not a bottom sheet).
+// • Two tabs: 📷 Scan  |  📝 Paste
+// • X button top-right + tap-outside-to-dismiss
+// • Entire content scrolls inside the card
+// • Footer (Grow stars!) lives inside the scroll so it is never
+//   hidden behind the bottom nav bar
 
 import SwiftUI
+import Vision
+import VisionKit
 
-// MARK: - Topic recipes (mocked picker by keyword)
+// MARK: - Topic recipes
 
 private struct TopicRecipe {
     let keywords: [String]
@@ -55,20 +63,14 @@ private let TOPIC_RECIPES: [TopicRecipe] = [
         matchConstellationId: nil,
         newName: "Melody Meadow", newEmoji: "🎵",
         newSkyStory: "You discovered a brand new corner of the galaxy. Music has its own little cluster of stars now!",
-        topics: [
-            ("Reading Notes","🎼"), ("Beats & Rhythm","🥁"), ("Loud & Soft","🔊"),
-            ("Major vs Minor","🎹"), ("Song Shapes","🎶"),
-        ]
+        topics: [("Reading Notes","🎼"), ("Beats & Rhythm","🥁"), ("Loud & Soft","🔊"), ("Major vs Minor","🎹"), ("Song Shapes","🎶")]
     ),
     TopicRecipe(
         keywords: ["code","program","computer","scratch","python","js"],
         matchConstellationId: nil,
         newName: "Code Cosmos", newEmoji: "💻",
         newSkyStory: "A new cluster of stars just blinked on. Computer thinking is its own kind of magic!",
-        topics: [
-            ("Sequences","➡️"), ("Loops","🔁"), ("If / Then","🔀"),
-            ("Variables","📦"), ("Bugs!","🐛"),
-        ]
+        topics: [("Sequences","➡️"), ("Loops","🔁"), ("If / Then","🔀"), ("Variables","📦"), ("Bugs!","🐛")]
     ),
     TopicRecipe(
         keywords: [],
@@ -87,25 +89,16 @@ private func pickRecipe(text: String, fileName: String) -> TopicRecipe {
     return TOPIC_RECIPES.last!
 }
 
-/// Scan the sky bottom-to-top for a cluster center that doesn't overlap
-/// any existing constellation's padded convex-hull bounding rect.
-/// The probe box represents the area the new cluster will occupy (outerR + clearance).
 private func freeClusterCenter(avoiding constellations: [Constellation]) -> CGPoint {
-    // minGap: minimum clear distance between any existing star edge and any new star edge.
     let minGap: CGFloat = 120
-    let outerR: CGFloat = 215          // radius of the new cluster's outer ring
-    let bboxPad = minGap / 2           // split gap evenly between the two sides
+    let outerR: CGFloat = 215
+    let bboxPad = minGap / 2
     let probeHalf = outerR + minGap / 2
-
     let boxes = constellations.map { $0.boundingRect(padding: bboxPad) }
-
     func isFree(_ x: CGFloat, _ y: CGFloat) -> Bool {
-        let probe = CGRect(x: x - probeHalf, y: y - probeHalf,
-                          width: probeHalf * 2, height: probeHalf * 2)
+        let probe = CGRect(x: x - probeHalf, y: y - probeHalf, width: probeHalf * 2, height: probeHalf * 2)
         return !boxes.contains { $0.intersects(probe) }
     }
-
-    // Scan bottom-to-top so we prefer the less-crowded lower sky.
     let step: CGFloat = 100
     var y = GalaxyData.SKY_H - 150
     while y >= 200 {
@@ -116,7 +109,6 @@ private func freeClusterCenter(avoiding constellations: [Constellation]) -> CGPo
         }
         y -= step
     }
-    // Fallback: extend below all existing content.
     let maxY = constellations.flatMap(\.nodes).map(\.y).max() ?? GalaxyData.SKY_H * 0.8
     return CGPoint(x: GalaxyData.SKY_W / 2, y: maxY + 380)
 }
@@ -161,45 +153,28 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
         let baseY = target.centroid.y + 90
         let positions = makeNewClusterPositions(count: recipe.topics.count, cx: baseX, cy: baseY)
         let addedNodes: [StarNode] = recipe.topics.enumerated().map { i, t in
-            StarNode(
-                id: "gen-\(now)-\(i)",
-                label: t.label, star: "New ✨", emoji: t.emoji,
-                x: positions[i].0, y: positions[i].1,
-                status: .gap, size: 5, mastery: 0
-            )
+            StarNode(id: "gen-\(now)-\(i)", label: t.label, star: "New ✨", emoji: t.emoji,
+                     x: positions[i].0, y: positions[i].1, status: .gap, size: 5, mastery: 0)
         }
         return GenerationOutcome(
-            result: GenerationResult(
-                isNew: false,
-                constellationName: target.name,
-                emoji: target.emoji,
-                addedTopics: recipe.topics,
-                neighborTopics: [],
-                jumpTo: (baseX, baseY, 1.0)
-            ),
-            targetConstellationId: target.id,
-            addedNodes: addedNodes,
-            newConstellation: nil
+            result: GenerationResult(isNew: false, constellationName: target.name, emoji: target.emoji,
+                                     addedTopics: recipe.topics, neighborTopics: [],
+                                     jumpTo: (baseX, baseY, 1.0)),
+            targetConstellationId: target.id, addedNodes: addedNodes, newConstellation: nil
         )
     }
 
-    // Brand-new constellation — find a free spot that doesn't overlap any existing one.
     let freeCenter = freeClusterCenter(avoiding: constellations)
     let cx = freeCenter.x, cy = freeCenter.y
     let positions = makeNewClusterPositions(count: recipe.topics.count, cx: cx, cy: cy)
     let newId = "gen-\(now)"
     let primary: [StarNode] = recipe.topics.enumerated().map { i, t in
-        StarNode(
-            id: "\(newId)-\(i)",
-            label: t.label, star: "New ✨", emoji: t.emoji,
-            x: positions[i].0, y: positions[i].1,
-            status: .gap, size: 5, mastery: 0
-        )
+        StarNode(id: "\(newId)-\(i)", label: t.label, star: "New ✨", emoji: t.emoji,
+                 x: positions[i].0, y: positions[i].1, status: .gap, size: 5, mastery: 0)
     }
     let neighborPool: [(label: String, emoji: String)] = [
-        ("Bonus Idea","🎁"), ("Try This Too","🌱"),
-        ("Cool Detail","🔍"), ("Big Picture","🖼️"),
-        ("Real-world Use","🌎"),
+        ("Bonus Idea","🎁"), ("Try This Too","🌱"), ("Cool Detail","🔍"),
+        ("Big Picture","🖼️"), ("Real-world Use","🌎"),
     ]
     var neighborTopics: [(label: String, emoji: String)] = []
     let neighborCount = min(3, primary.count)
@@ -209,69 +184,59 @@ func buildGenerationResult(text: String, fileName: String, constellations: [Cons
         let n = primary[i]
         let ang = Double(i) / Double(neighborCount) * .pi * 2 + .pi / 6
         let dist: CGFloat = 75 + CGFloat(i) * 15
-        return StarNode(
-            id: "\(newId)-nb-\(i)",
-            label: pick.label, star: "Sleepy", emoji: pick.emoji,
-            x: n.x + CGFloat(cos(ang)) * dist,
-            y: n.y + CGFloat(sin(ang)) * dist,
-            status: .locked, size: 3.5, mastery: nil
-        )
+        return StarNode(id: "\(newId)-nb-\(i)", label: pick.label, star: "Sleepy", emoji: pick.emoji,
+                        x: n.x + CGFloat(cos(ang)) * dist, y: n.y + CGFloat(sin(ang)) * dist,
+                        status: .locked, size: 3.5, mastery: nil)
     }
     var edges: [Edge] = []
-    for i in 0..<(primary.count - 1) {
-        edges.append(Edge(a: primary[i].id, b: primary[i + 1].id))
-    }
-    for (i, nn) in neighbors.enumerated() {
-        edges.append(Edge(a: primary[i].id, b: nn.id))
-    }
+    for i in 0..<(primary.count - 1) { edges.append(Edge(a: primary[i].id, b: primary[i + 1].id)) }
+    for (i, nn) in neighbors.enumerated() { edges.append(Edge(a: primary[i].id, b: nn.id)) }
 
     let newConstellation = Constellation(
-        id: newId,
-        name: recipe.newName ?? "New Skies",
-        realName: "A new constellation",
-        nickname: "",
-        emoji: recipe.newEmoji ?? "✨",
-        course: "Just for you · made by Nova",
+        id: newId, name: recipe.newName ?? "New Skies", realName: "A new constellation",
+        nickname: "", emoji: recipe.newEmoji ?? "✨", course: "Just for you · made by Nova",
         blurb: "New stars Nova found in your doc.",
         skyStory: recipe.newSkyStory ?? "Nova made this constellation just for you.",
-        centroid: CGPoint(x: cx, y: cy),
-        nodes: primary + neighbors,
-        edges: edges
+        centroid: CGPoint(x: cx, y: cy), nodes: primary + neighbors, edges: edges
     )
     return GenerationOutcome(
-        result: GenerationResult(
-            isNew: true,
-            constellationName: recipe.newName ?? "New Skies",
-            emoji: recipe.newEmoji ?? "✨",
-            addedTopics: recipe.topics,
-            neighborTopics: neighborTopics,
-            jumpTo: (cx, cy, 0.9)
-        ),
-        targetConstellationId: nil,
-        addedNodes: [],
-        newConstellation: newConstellation
+        result: GenerationResult(isNew: true, constellationName: recipe.newName ?? "New Skies",
+                                 emoji: recipe.newEmoji ?? "✨", addedTopics: recipe.topics,
+                                 neighborTopics: neighborTopics, jumpTo: (cx, cy, 0.9)),
+        targetConstellationId: nil, addedNodes: [], newConstellation: newConstellation
     )
 }
 
-// MARK: - Upload modal (pick)
+// MARK: - Upload Modal
 
 struct UploadModal: View {
     let onClose: () -> Void
     let onGenerate: (_ text: String, _ fileName: String) -> Void
 
-    @State private var tab: PickTab = .file
+    // MARK: Tab — only Scan + Paste
+    enum PickTab: String, CaseIterable {
+        case scan, paste
+        var label: String {
+            switch self {
+            case .scan:  return "📷 Scan"
+            case .paste: return "📝 Paste"
+            }
+        }
+    }
+
+    @State private var tab: PickTab = .scan
     @State private var text: String = ""
     @State private var fileName: String = ""
 
-    enum PickTab: String, CaseIterable {
-        case file, paste, link
-        var label: String {
-            switch self {
-            case .file: return "📎 Upload"
-            case .paste: return "📝 Paste text"
-            case .link: return "🔗 Link"
-            }
-        }
+    // Scan sub-state
+    @State private var scanStatus: ScanStatus = .idle
+    @State private var showImagePicker = false
+    @State private var imagePickerSource: UIImagePickerController.SourceType = .camera
+    @State private var showDocumentCamera = false
+    @State private var scannedPreviewImage: UIImage? = nil
+
+    enum ScanStatus: Equatable {
+        case idle, scanning, done(lines: Int, words: Int, ragWindows: Int), failed(String)
     }
 
     private let examples: [(label: String, emoji: String, seed: String)] = [
@@ -281,113 +246,151 @@ struct UploadModal: View {
         ("Coding lesson", "💻", "code program loops"),
     ]
 
+    private var canSubmit: Bool {
+        !text.trimmingCharacters(in: .whitespaces).isEmpty && scanStatus != .scanning
+    }
+
+    // MARK: - Body
+
     var body: some View {
         ZStack {
-            Color(hex: 0x04060E, opacity: 0.7)
-                .background(.ultraThinMaterial)
+            // ── Scrim — tap to dismiss ──────────────────────────────────────
+            Color.black.opacity(0.72)
                 .ignoresSafeArea()
                 .onTapGesture { onClose() }
 
-            VStack(spacing: 0) {
-                Spacer(minLength: 0)
-                modal
-            }
-            .ignoresSafeArea(edges: .bottom)
-        }
-    }
+            // ── Floating card ───────────────────────────────────────────────
+            GeometryReader { geo in
+                let cardWidth  = min(geo.size.width - 40, 480)
+                // Leave at least 60 pt above the bottom (nav bar area) and
+                // 60 pt below the status bar; clamp height so it never fills
+                // the whole screen.
+                let maxCardH   = geo.size.height - geo.safeAreaInsets.top - geo.safeAreaInsets.bottom - 80
+                let cardHeight = min(maxCardH, 620)
 
-    private var modal: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(Color.white.opacity(0.25))
-                .frame(width: 40, height: 4)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
-                .onTapGesture { onClose() }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    hero.padding(.bottom, 16)
-                    tabs.padding(.bottom, 14)
-
-                    Group {
-                        switch tab {
-                        case .file: filePane
-                        case .paste: pastePane
-                        case .link: linkPane
-                        }
-                    }
-                    .padding(.bottom, 18)
-
-                    examplesSection
-                        .padding(.bottom, 22)
+                ScrollView {
+                    cardContent
+                        .frame(width: cardWidth)
                 }
-                .padding(.horizontal, 18)
+                .frame(width: cardWidth, height: cardHeight)
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(LinearGradient(
+                            colors: [Color(hex: 0x1E0E4A), Color(hex: 0x0E0626)],
+                            startPoint: .top, endPoint: .bottom
+                        ))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(Color(hex: 0xFFE066, opacity: 0.30), lineWidth: 1.5)
+                )
+                .shadow(color: .black.opacity(0.55), radius: 40, x: 0, y: 16)
+                // Centre the card in the safe area, nudged slightly above centre
+                .position(
+                    x: geo.size.width / 2,
+                    y: geo.safeAreaInsets.top + (geo.size.height - geo.safeAreaInsets.top - geo.safeAreaInsets.bottom) / 2 - 20
+                )
             }
-
-            footer
+            .ignoresSafeArea()
         }
-        .containerRelativeFrame(.vertical) { length, _ in length * 0.94 }
-        .background(
-            LinearGradient(
-                colors: [Color(hex: 0x1A0B40), Color(hex: 0x0E0626)],
-                startPoint: .top, endPoint: .bottom
-            )
-        )
-        .clipShape(.rect(topLeadingRadius: 28, topTrailingRadius: 28))
-        .overlay(
-            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
-                .stroke(Color(hex: 0xFFE066, opacity: 0.35), lineWidth: 1.5)
-                .ignoresSafeArea(edges: .bottom)
-        )
-        .foregroundColor(.white)
-    }
-
-    private var hero: some View {
-        HStack(spacing: 14) {
-            // Nova with magnifier — emoji rendition
-            ZStack {
-                Circle()
-                    .fill(LinearGradient(
-                        colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFF8A4C, opacity: 0.6)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    ))
-                    .frame(width: 64, height: 64)
-                Text("🦊").font(.system(size: 36))
-                Text("🔍")
-                    .font(.system(size: 28))
-                    .offset(x: 24, y: 22)
+        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: true)
+        // Image picker sheet
+        .sheet(isPresented: $showImagePicker) {
+            ImagePickerRepresentable(source: imagePickerSource) { image in
+                scannedPreviewImage = image
+                runOCR(on: image, source: imagePickerSource == .camera ? "Camera" : "PhotoLibrary")
             }
-            .frame(width: 88, height: 88)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("✨ NEW SKIES")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .tracking(0.5)
-                    .foregroundColor(Color(hex: 0xFFE066))
-                Text("Show Nova a doc!")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                Text("Drop in a worksheet, photo, or anything you're learning. Nova will turn it into stars to play with.")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.78))
-                    .lineSpacing(1)
-                    .padding(.top, 4)
+        }
+        // Document camera sheet
+        .sheet(isPresented: $showDocumentCamera) {
+            DocumentCameraRepresentable { images in
+                if let first = images.first { scannedPreviewImage = first }
+                runOCROnPages(images, source: "DocumentScan(\(images.count)p)")
             }
-            Spacer(minLength: 0)
         }
     }
 
-    private var tabs: some View {
+    // MARK: - Card content (scrolls inside the card)
+
+    private var cardContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+
+            // ── Top bar: title + X ─────────────────────────────────────────
+            HStack(alignment: .top, spacing: 0) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("✨ NEW SKIES")
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .tracking(0.6)
+                        .foregroundColor(Color(hex: 0xFFE066))
+                    Text("Show Nova a doc!")
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+                Spacer()
+                // X dismiss button
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white.opacity(0.7))
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(Color.white.opacity(0.12)))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 22)
+            .padding(.bottom, 14)
+
+            // ── Sub-headline ───────────────────────────────────────────────
+            Text("Scan a worksheet or paste any text. Nova will turn it into stars! 🌟")
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundColor(.white.opacity(0.65))
+                .lineSpacing(2)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+
+            // ── Tab picker ─────────────────────────────────────────────────
+            tabPicker
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+
+            // ── Active pane ────────────────────────────────────────────────
+            Group {
+                switch tab {
+                case .scan:  scanPane
+                case .paste: pastePane
+                }
+            }
+            .padding(.horizontal, 20)
+
+            // ── Examples (paste tab only) ──────────────────────────────────
+            if tab == .paste {
+                examplesSection
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+            }
+
+            // ── Grow stars button — inside scroll, always visible ──────────
+            growButton
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 28)   // generous bottom so it clears nav bar
+        }
+    }
+
+    // MARK: - Tab picker (2 tabs only)
+
+    private var tabPicker: some View {
         HStack(spacing: 6) {
             ForEach(PickTab.allCases, id: \.self) { t in
                 let active = tab == t
                 Button(action: { tab = t }) {
                     Text(t.label)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundColor(active ? Color(hex: 0x3A2A00) : .white.opacity(0.7))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundColor(active ? Color(hex: 0x3A2A00) : .white.opacity(0.65))
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 9)
                         .background(
                             active
                             ? AnyShapeStyle(LinearGradient(
@@ -401,140 +404,177 @@ struct UploadModal: View {
             }
         }
         .padding(4)
-        .background(
-            Capsule().fill(Color.black.opacity(0.3))
-        )
+        .background(Capsule().fill(Color.black.opacity(0.35)))
     }
 
-    private var filePane: some View {
-        VStack(spacing: 0) {
-            VStack(spacing: 6) {
-                Text("📂").font(.system(size: 38))
-                if !fileName.isEmpty {
-                    Text("Got it! ✨")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(Color(hex: 0xFFE066))
-                    Text(fileName)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.85))
-                    Text("Tap \"Grow stars!\" below")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.55))
-                        .padding(.top, 8)
-                } else {
-                    Text("Drop a file here")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Text("or tap to pick from your device")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.65))
-                        .padding(.bottom, 8)
-                    HStack(spacing: 6) {
-                        ForEach(["📄 PDF","🖼️ Photo","📝 Doc","🎤 Audio","✍️ Text"], id: \.self) { t in
-                            Text(t)
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.75))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 4)
-                                .background(Capsule().fill(Color.white.opacity(0.08)))
-                                .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+    // MARK: - Scan pane
+
+    private var scanPane: some View {
+        VStack(spacing: 12) {
+            // Preview / status box
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.black.opacity(0.28))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(Color(hex: 0xFFE066, opacity: 0.4),
+                                          style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                    )
+
+                if let img = scannedPreviewImage {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 140)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                scannedPreviewImage = nil
+                                scanStatus = .idle
+                                text = ""
+                                fileName = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.white.opacity(0.85))
+                                    .padding(8)
+                            }
+                            .buttonStyle(.plain)
                         }
-                    }
+                } else {
+                    scanStatusView.frame(height: 140)
                 }
             }
-            .padding(EdgeInsets(top: 24, leading: 16, bottom: 24, trailing: 16))
             .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(0.04))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(
-                        Color(hex: 0xFFE066, opacity: 0.45),
-                        style: StrokeStyle(lineWidth: 2, dash: [6, 4])
-                    )
-            )
-            .onTapGesture {
-                // Mock file pick — set a sample filename so user can test the flow
-                fileName = "homework.pdf"
-                text = fileName
+            .frame(height: 140)
+
+            // Source buttons
+            HStack(spacing: 8) {
+                sourceBtn("📷 Camera")    { imagePickerSource = .camera;       showImagePicker = true }
+                sourceBtn("🖼️ Library")   { imagePickerSource = .photoLibrary; showImagePicker = true }
+                sourceBtn("📄 Document")  { showDocumentCamera = true }
+            }
+
+            // Extracted text preview
+            if !text.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack {
+                        Text("📝 Extracted text")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundColor(Color(hex: 0xFFE066, opacity: 0.9))
+                        Spacer()
+                        if case .done(let l, let w, let c) = scanStatus {
+                            Text("\(l) lines · \(w)w · \(c) chunks")
+                                .font(.system(size: 10, weight: .medium, design: .rounded))
+                                .foregroundColor(.white.opacity(0.4))
+                        }
+                    }
+                    ScrollView {
+                        Text(text)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundColor(.white.opacity(0.75))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(height: 76)
+                    .padding(10)
+                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.05)))
+                }
             }
         }
     }
+
+    @ViewBuilder
+    private var scanStatusView: some View {
+        switch scanStatus {
+        case .idle:
+            VStack(spacing: 7) {
+                Text("📸").font(.system(size: 32))
+                Text("Scan your schoolwork")
+                    .font(.system(size: 14, weight: .bold, design: .rounded)).foregroundColor(.white)
+                Text("Camera · Library · Multi-page doc")
+                    .font(.system(size: 11, weight: .medium, design: .rounded)).foregroundColor(.white.opacity(0.5))
+            }
+        case .scanning:
+            VStack(spacing: 10) {
+                ProgressView().progressViewStyle(.circular).tint(Color(hex: 0xFFE066)).scaleEffect(1.2)
+                Text("Reading your doc… ✨")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color(hex: 0xFFE066))
+            }
+        case .done(let lines, let words, _):
+            VStack(spacing: 5) {
+                Text("✅").font(.system(size: 28))
+                Text("Got it! \(lines) lines, \(words) words")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundColor(Color(hex: 0xFFE066))
+                Text("Tap Grow stars! below")
+                    .font(.system(size: 11, design: .rounded)).foregroundColor(.white.opacity(0.5))
+            }
+        case .failed(let msg):
+            VStack(spacing: 7) {
+                Text("⚠️").font(.system(size: 28))
+                Text(msg).font(.system(size: 12, design: .rounded)).foregroundColor(.white.opacity(0.65))
+                    .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    private func sourceBtn(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color(hex: 0x5EE7FF, opacity: 0.30), lineWidth: 1.2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Paste pane
 
     private var pastePane: some View {
         TextEditor(text: $text)
             .font(.system(size: 13, weight: .medium, design: .rounded))
             .foregroundColor(.white)
             .scrollContentBackground(.hidden)
-            .frame(minHeight: 130)
+            .frame(minHeight: 140)
             .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.black.opacity(0.3))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color(hex: 0xFFE066, opacity: 0.35), lineWidth: 2)
-            )
+            .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.3)))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(hex: 0xFFE066, opacity: 0.32), lineWidth: 1.5))
             .overlay(alignment: .topLeading) {
                 if text.isEmpty {
-                    Text("Paste anything you're learning… a passage, a problem, a list of words…")
+                    Text("Paste anything you're learning — a passage, problem, vocab list…")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.4))
+                        .foregroundColor(.white.opacity(0.38))
                         .padding(20)
                         .allowsHitTesting(false)
                 }
             }
     }
 
-    private var linkPane: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("", text: $text, prompt: Text("Paste a link (article, video, lesson)…")
-                .foregroundColor(.white.opacity(0.45)))
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundColor(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.black.opacity(0.3))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color(hex: 0xFFE066, opacity: 0.35), lineWidth: 2)
-                )
-            Text("💡 Tip: works great with Wikipedia, news, Khan Academy, YouTube")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.55))
-                .padding(.leading, 4)
-        }
-    }
+    // MARK: - Examples
 
     private var examplesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("⚡ TRY ONE OF THESE")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .tracking(0.6)
-                .foregroundColor(Color(hex: 0xFFE066, opacity: 0.95))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .tracking(0.5)
+                .foregroundColor(Color(hex: 0xFFE066, opacity: 0.85))
             FlowLayout(spacing: 7) {
                 ForEach(Array(examples.enumerated()), id: \.offset) { _, ex in
-                    Button(action: {
-                        tab = .paste
-                        text = ex.seed
-                        fileName = ""
-                    }) {
-                        HStack(spacing: 6) {
+                    Button(action: { text = ex.seed; fileName = "" }) {
+                        HStack(spacing: 5) {
                             Text(ex.emoji)
                             Text(ex.label)
                         }
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 11).padding(.vertical, 7)
                         .background(Capsule().fill(Color.white.opacity(0.08)))
-                        .overlay(Capsule().stroke(Color(hex: 0x5EE7FF, opacity: 0.35), lineWidth: 1.5))
+                        .overlay(Capsule().stroke(Color(hex: 0x5EE7FF, opacity: 0.30), lineWidth: 1.2))
                     }
                     .buttonStyle(.plain)
                 }
@@ -542,56 +582,134 @@ struct UploadModal: View {
         }
     }
 
-    private var canSubmit: Bool {
-        switch tab {
-        case .file: return !fileName.isEmpty
-        case .paste, .link: return !text.trimmingCharacters(in: .whitespaces).isEmpty
+    // MARK: - Grow stars button
+
+    private var growButton: some View {
+        Button(action: { onGenerate(text, fileName) }) {
+            HStack(spacing: 8) {
+                Text("🌟")
+                Text("Grow stars!")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+            }
+            .foregroundColor(canSubmit ? Color(hex: 0x3A2A00) : Color(hex: 0x3A2A00).opacity(0.5))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 15)
+            .background(
+                Capsule().fill(
+                    canSubmit
+                    ? AnyShapeStyle(LinearGradient(
+                        colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing))
+                    : AnyShapeStyle(Color(hex: 0xFFE066, opacity: 0.22))
+                )
+            )
+            .shadow(color: canSubmit ? Color(hex: 0xFFB300, opacity: 0.45) : .clear, radius: 14, x: 0, y: 5)
+        }
+        .buttonStyle(.plain)
+        .disabled(!canSubmit)
+    }
+
+    // MARK: - OCR
+
+    private func runOCR(on image: UIImage, source: String) {
+        scanStatus = .scanning
+        fileName = source
+        Task { await performOCR(cgImage: image.cgImage, source: source) }
+    }
+
+    private func runOCROnPages(_ images: [UIImage], source: String) {
+        scanStatus = .scanning
+        fileName = source
+        Task {
+            var allLines: [String] = []
+            for (i, img) in images.enumerated() {
+                guard let cg = img.cgImage else { continue }
+                var req = RecognizeTextRequest()
+                req.recognitionLevel = .accurate
+                req.usesLanguageCorrection = true
+                let obs = try? await ImageRequestHandler(cg).perform(req)
+                allLines.append("--- Page \(i + 1) ---")
+                allLines.append(contentsOf: obs?.compactMap { $0.topCandidates(1).first?.string } ?? [])
+            }
+            await finishOCR(lines: allLines, source: source)
         }
     }
 
-    private var footer: some View {
-        HStack(spacing: 10) {
-            Button(action: onClose) {
-                Text("Cancel")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 14)
-                    .background(Capsule().fill(Color.white.opacity(0.05)))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1.5))
-            }
-            .buttonStyle(.plain)
-
-            Button(action: {
-                onGenerate(text, fileName)
-            }) {
-                Text("🌟 Grow stars!")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(Color(hex: 0x3A2A00))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        Capsule().fill(
-                            canSubmit
-                            ? AnyShapeStyle(LinearGradient(
-                                colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
-                                startPoint: .topLeading, endPoint: .bottomTrailing))
-                            : AnyShapeStyle(Color(hex: 0xFFE066, opacity: 0.25))
-                        )
-                    )
-                    .shadow(color: canSubmit ? Color(hex: 0xFFB300, opacity: 0.5) : .clear, radius: 16, x: 0, y: 6)
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-            .opacity(canSubmit ? 1 : 0.55)
+    private func performOCR(cgImage: CGImage?, source: String) async {
+        guard let cg = cgImage else {
+            await MainActor.run { scanStatus = .failed("Couldn't read image data.") }
+            return
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(
-            LinearGradient(
-                colors: [Color.clear, Color(hex: 0x0E0626)],
-                startPoint: .top, endPoint: .bottom
-            )
-        )
+        var req = RecognizeTextRequest()
+        req.recognitionLevel = .accurate
+        req.usesLanguageCorrection = true
+        req.recognitionLanguages = [Locale.Language(identifier: "en-US")]
+        guard let obs = try? await ImageRequestHandler(cg).perform(req) else {
+            await MainActor.run { scanStatus = .failed("OCR failed — try again.") }
+            return
+        }
+        await finishOCR(lines: obs.compactMap { $0.topCandidates(1).first?.string }, source: source)
+    }
+
+    @MainActor
+    private func finishOCR(lines: [String], source: String) async {
+        let fullText = lines.joined(separator: "\n")
+        text = fullText
+        let chunk = CurriculumChunk(id: UUID(), rawText: fullText, source: source, timestamp: Date())
+        MemoryStore.shared.saveCurriculumScan(chunk)
+        scanStatus = .done(lines: lines.count, words: chunk.wordCount, ragWindows: chunk.ragChunks().count)
+    }
+}
+
+// MARK: - UIKit bridges
+
+private struct ImagePickerRepresentable: UIViewControllerRepresentable {
+    let source: UIImagePickerController.SourceType
+    let onPick: (UIImage) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let p = UIImagePickerController()
+        p.sourceType = source
+        p.allowsEditing = false
+        p.delegate = context.coordinator
+        return p
+    }
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let onPick: (UIImage) -> Void
+        init(onPick: @escaping (UIImage) -> Void) { self.onPick = onPick }
+        func imagePickerController(_ picker: UIImagePickerController,
+                                   didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            picker.dismiss(animated: true)
+            if let img = (info[.editedImage] ?? info[.originalImage]) as? UIImage { onPick(img) }
+        }
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) { picker.dismiss(animated: true) }
+    }
+}
+
+private struct DocumentCameraRepresentable: UIViewControllerRepresentable {
+    let onFinish: ([UIImage]) -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
+    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+        let vc = VNDocumentCameraViewController()
+        vc.delegate = context.coordinator
+        return vc
+    }
+    func updateUIViewController(_ uiViewController: VNDocumentCameraViewController, context: Context) {}
+    class Coordinator: NSObject, VNDocumentCameraViewControllerDelegate {
+        let onFinish: ([UIImage]) -> Void
+        init(onFinish: @escaping ([UIImage]) -> Void) { self.onFinish = onFinish }
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController,
+                                          didFinishWith scan: VNDocumentCameraScan) {
+            controller.dismiss(animated: true)
+            onFinish((0..<scan.pageCount).map { scan.imageOfPage(at: $0) })
+        }
+        func documentCameraViewControllerDidCancel(_ controller: VNDocumentCameraViewController) {
+            controller.dismiss(animated: true); onFinish([])
+        }
+        func documentCameraViewController(_ controller: VNDocumentCameraViewController,
+                                          didFailWithError error: Error) {
+            controller.dismiss(animated: true); onFinish([])
+        }
     }
 }
