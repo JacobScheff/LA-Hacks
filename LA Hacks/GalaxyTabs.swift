@@ -747,7 +747,7 @@ struct NovaAITab: View {
             onComplete: { result in
                 DispatchQueue.main.async {
                     self.isProcessing = false
-                    if let error = error {
+                    if let error = result.error {
                         self.rawOutput = "Oops! Nova had a problem: \(error.localizedDescription)"
                     } else {
                         let parsed = self.parsedOutput
