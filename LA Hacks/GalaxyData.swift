@@ -211,7 +211,7 @@ enum GalaxyData {
                 Edge(a:"count",b:"place"), Edge(a:"place",b:"add"), Edge(a:"add",b:"sub"), Edge(a:"sub",b:"count"),
                 Edge(a:"sub",b:"mul"), Edge(a:"mul",b:"div"), Edge(a:"div",b:"odd"),
             ]
-        )
+        ),
         // Orion → FRACTIONS
         Constellation(
             id: "fractions",

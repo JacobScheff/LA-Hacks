@@ -64,15 +64,19 @@ enum RAGRetriever {
         var scored: [(chunk: RAGChunk, score: Float)] = []
 
         // ── 1. Galaxy graph nodes (original source) ──────────────────────────
+        // Each chunk's score is multiplied by BKTPipeline.ragBoost so weak /
+        // forgetting concepts surface more aggressively in retrieval.
         for constellation in GalaxyData.constellations {
             for star in constellation.nodes {
-                let score = galaxyScore(
+                let baseScore = galaxyScore(
                     tokens: queryTokens,
                     constellation: constellation,
                     star: star,
                     context: context
                 )
-                guard score > 0 else { continue }
+                guard baseScore > 0 else { continue }
+                let boost = BKTPipeline.ragBoost(for: star.id)
+                let score = baseScore * boost
                 scored.append((
                     RAGChunk(
                         constellationID: constellation.id,
@@ -163,22 +167,14 @@ enum RAGPipeline {
 
     // MARK: - System Prompt
 
-    // #region agent log
-    private static func _dbLog(_ h: String, _ loc: String, _ msg: String, _ kv: [String: String] = [:]) {
-        let p = "/Users/genami133/Projects/LA-Hacks/.cursor/debug-2da7cf.log"
-        let d = kv.map { "\"\($0.key)\":\"\($0.value.replacingOccurrences(of: "\"", with: "'"))\"" }.joined(separator: ",")
-        let line = "{\"sessionId\":\"2da7cf\",\"hypothesisId\":\"\(h)\",\"location\":\"\(loc)\",\"message\":\"\(msg)\",\"data\":{\(d)},\"timestamp\":\(Int(Date().timeIntervalSince1970*1000))}\n"
-        if let fh = FileHandle(forWritingAtPath: p) { fh.seekToEndOfFile(); fh.write(line.data(using: .utf8)!); fh.closeFile() }
-        else { try? line.data(using: .utf8)?.write(to: URL(fileURLWithPath: p)) }
-    }
-    // #endregion
-
     private static func buildSystemPrompt(chunks: [RAGChunk], context: PipelineContext) -> String {
-        // #region agent log
-        let lang = UserSettings.shared.language
-        _dbLog("A", "ModelRAGPipeline.swift:buildSystemPrompt", "Building AI prompt - language check", ["userLanguage": lang, "promptIncludesLanguage": "false"])
-        // #endregion
+        let langCode = UserSettings.shared.language
+        let langName = Translations.displayName(forLanguage: langCode)
+        NSLog("[i18n] RAGPipeline.buildSystemPrompt langCode=\(langCode) langName=\(langName)")
+
         var prompt = """
+        ⚠️ LANGUAGE: Always respond in \(langName) (\(langCode)). Every sentence — including encouragements, questions, and emojis-adjacent words — MUST be written in \(langName). If the student writes in another language, translate it and still reply in \(langName).
+
         Role: You are "Nova," a friendly, high-energy, and patient AI tutor for elementary school students (ages 6–11). Your mission is to help students understand their schoolwork using the documents they upload.
         Tone & Personality:
         * Encouraging: Use phrases like "You've got this!", "Great try!", and "We're becoming experts together!"
@@ -256,14 +252,16 @@ enum RAGPipeline {
             prompt += "\n## 🧠 Student Memory\n\(memContext)\n"
         }
         
-        // ── Weak concept reinforcement ────────────────────────────────
-        let bktSummary = BKTMastery.shared.summaryForPrompt()
-        if !bktSummary.isEmpty {
-            prompt += "\n\n## 🔁 Concepts to Reinforce\n\(bktSummary)\n"
+        // ── BKT-driven reinforcement context ────────────────────────────────
+        // Includes: active-star snapshot (mastery / forgetting / prereqs /
+        // misconceptions), recently forgotten topics, misconception watchlist.
+        let bktContext = BKTPipeline.contextForRAG(activeStarID: context.activeStarID)
+        if !bktContext.isEmpty {
+            prompt += "\n\n\(bktContext)\n"
             prompt += "Weave in gentle review or extra encouragement for these topics naturally during the lesson.\n"
         }
 
-        prompt += "\nNow respond to \(context.studentName)'s message below. Remember: 3–4 sentences max! 🚀\n"
+        prompt += "\nNow respond to \(context.studentName)'s message below. Remember: 3–4 sentences max, ENTIRELY in \(langName)! 🚀\n"
         return prompt
     }
 

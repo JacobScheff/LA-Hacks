@@ -113,6 +113,14 @@ struct SettingsTab: View {
 
                 TabHeader(kicker: "", title: "Settings", emoji: "", subtitle: "")
 
+                // #region agent log — TEMPORARY i18n debug strip (debug-2da7cf)
+                // Visible on-screen probe so we can see — without Xcode console
+                // or log files — exactly what each layer of the localization
+                // pipeline returns. Values render LIVE because everything reads
+                // from `userSettings.language` and the static `LanguageRuntime`.
+                i18nDebugStrip
+                // #endregion
+
                 VStack(spacing: 12) {
                     profileSection
                     soundSection
@@ -125,6 +133,7 @@ struct SettingsTab: View {
             .padding(.bottom, 30)
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .dismissesKeyboard()
         .foregroundColor(.white)
         .onAppear {
@@ -178,6 +187,7 @@ struct SettingsTab: View {
                         ))
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundColor(.white)
+                            .submitLabel(.done)
                             .padding(.horizontal, 12).padding(.vertical, 10)
                             .background(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -188,6 +198,7 @@ struct SettingsTab: View {
                                     .stroke(Color(hex: 0x5EE7FF, opacity: 0.4), lineWidth: 1.5)
                             )
                             .onSubmit { editingName = false }
+                            .keyboardDoneToolbar()
                         Button(action: { editingName = false }) {
                             Text("Save")
                                 .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -342,6 +353,62 @@ struct SettingsTab: View {
         let h24 = parts[0], m = parts[1]
         let hour12 = h24 == 0 ? 12 : (h24 > 12 ? h24 - 12 : h24)
         return (hour12, m, h24 < 12)
+    }
+
+    // MARK: Debug strip (TEMPORARY — debug-2da7cf)
+
+    /// On-screen probe that surfaces what each layer of the localization
+    /// pipeline is producing in real time. Each row tells us about a
+    /// different hypothesis:
+    ///
+    ///   • `userSettings.language`            ← P1: did the user's choice persist?
+    ///   • `LanguageRuntime.code`             ← P1/P4: did `setLanguage` flow run?
+    ///   • `Bundle.main.localizedString(...)` ← P2: is the swizzle dispatching?
+    ///   • `NSLocalizedString(...)`           ← P2 alt path (NSBundle macro)
+    ///   • `Translations.lookup(...)`         ← P5: is the dictionary itself ok?
+    ///   • `Text("Settings")`                 ← P3: does SwiftUI even ask Bundle?
+    ///   • `Text("__settings_anchor__")`      ← P3 alt: does SwiftUI for an
+    ///       intentionally-not-in-strings-file key still call our hook? If yes,
+    ///       SwiftUI IS routing through Bundle and our swizzle is invisible
+    ///       (rejecting P3). If no, SwiftUI bypasses bundle entirely.
+    private var i18nDebugStrip: some View {
+        let lang = userSettings.language
+        let runtimeCode = LanguageRuntime.code
+        let bundleProbe = Bundle.main.localizedString(forKey: "Settings", value: nil, table: nil)
+        let nsProbe = NSLocalizedString("Settings", comment: "")
+        let dictProbe = Translations.lookup(key: "Settings", language: lang) ?? "<nil>"
+
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(verbatim: "🐛 i18n debug")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundColor(Color(hex: 0xFFE066))
+            Group {
+                Text(verbatim: "userSettings.language = \(lang)")
+                Text(verbatim: "LanguageRuntime.code  = \(runtimeCode)")
+                Text(verbatim: "Bundle.localized      = \(bundleProbe)")
+                Text(verbatim: "NSLocalizedString     = \(nsProbe)")
+                Text(verbatim: "Translations.lookup   = \(dictProbe)")
+            }
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundColor(Color(hex: 0x5EE7FF))
+            HStack(spacing: 8) {
+                Text(verbatim: "SwiftUI Text:")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.white.opacity(0.6))
+                Text("Settings")
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundColor(Color(hex: 0xFF8AD8))
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.45))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10).stroke(Color(hex: 0xFFE066, opacity: 0.4), lineWidth: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.bottom, 8)
     }
 
     // MARK: About

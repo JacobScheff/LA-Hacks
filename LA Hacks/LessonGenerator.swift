@@ -75,9 +75,142 @@ actor LessonGeneratorQueue {
     }
 }
 
+// MARK: - Constellation intro (used after upload)
+
+/// Customized constellation metadata derived from a freshly-uploaded doc.
+struct ConstellationIntro {
+    let name: String        // ≤ 4 words, kid-friendly
+    let blurb: String       // 1 sentence describing what's inside
+    let skyStory: String    // 1-2 sentence whimsical "why this constellation appeared"
+    let course: String      // short label like "Math · Adding & Subtracting"
+}
+
 // MARK: - Generator
 
 enum LessonGenerator {
+
+    // MARK: - Language directive (used by every prompt builder)
+
+    /// One-line directive injected into the System Prompt of every model call so
+    /// Nova replies (and the JSON payloads it returns) stay in the user's chosen
+    /// language. JSON keys remain English; only the *values* get translated.
+    private static func languageDirective() -> String {
+        let code = UserSettings.shared.language
+        let name = Translations.displayName(forLanguage: code)
+        NSLog("[i18n] LessonGenerator.languageDirective code=\(code) name=\(name)")
+        return "Always write to the student in \(name) (\(code)). Keep JSON keys in English, but every JSON string VALUE — `intro`, `prompt`, `hint`, `question`, `viz` words, etc. — and every free-text reply must be in \(name)."
+    }
+
+    // MARK: Constellation intro (used after upload)
+
+    /// Generates a custom name + blurb + skyStory + course label for a brand-new
+    /// constellation grown from an upload. The result replaces the subject-default
+    /// metadata so each upload feels uniquely tied to the doc the student picked.
+    /// Returns nil on model failure or unparseable JSON; caller falls back to defaults.
+    static func generateConstellationIntro(
+        uploadedText: String,
+        suggestedName: String,
+        suggestedEmoji: String,
+        topicLabels: [String]
+    ) async -> ConstellationIntro? {
+        await LessonGeneratorQueue.shared.run {
+            await runConstellationIntro(
+                uploadedText: uploadedText,
+                suggestedName: suggestedName,
+                suggestedEmoji: suggestedEmoji,
+                topicLabels: topicLabels
+            )
+        }
+    }
+
+    private static func runConstellationIntro(
+        uploadedText: String,
+        suggestedName: String,
+        suggestedEmoji: String,
+        topicLabels: [String]
+    ) async -> ConstellationIntro? {
+        let prompt = buildConstellationIntroPrompt(
+            uploadedText: uploadedText,
+            suggestedName: suggestedName,
+            suggestedEmoji: suggestedEmoji,
+            topicLabels: topicLabels
+        )
+        guard let raw = try? await streamAll(prompt: prompt, onStream: { _ in }) else {
+            return nil
+        }
+        let cleaned = stripThoughts(raw)
+        guard let json = extractJSONObject(from: cleaned),
+              let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let name = (obj["name"] as? String).flatMap({ $0.isEmpty ? nil : $0 }),
+              let blurb = (obj["blurb"] as? String).flatMap({ $0.isEmpty ? nil : $0 }),
+              let sky = (obj["skyStory"] as? String).flatMap({ $0.isEmpty ? nil : $0 })
+        else {
+            print("LessonGenerator: constellation intro JSON missing fields:\n\(cleaned)")
+            return nil
+        }
+        let course = (obj["course"] as? String) ?? "Just for you · made by Nova"
+        return ConstellationIntro(
+            name: trimToWords(name, maxWords: 4),
+            blurb: blurb,
+            skyStory: sky,
+            course: course
+        )
+    }
+
+    private static func buildConstellationIntroPrompt(
+        uploadedText: String,
+        suggestedName: String,
+        suggestedEmoji: String,
+        topicLabels: [String]
+    ) -> String {
+        // Cap source text so the prompt stays small even for big PDFs.
+        let snippet = String(uploadedText.prefix(2000))
+        let topicList = topicLabels.prefix(8).joined(separator: ", ")
+        return """
+        System Prompt:
+        Do not use thinking tokens.
+        You are Nova, a warm, playful tutor for elementary kids who names new
+        constellations in a galaxy-themed learning app.
+        \(languageDirective())
+
+        User Prompt:
+        A student just uploaded a doc, and Nova grew a brand-new constellation
+        for it. Read the snippet below and craft custom metadata for that
+        constellation.
+
+        Suggested fallback name: \(suggestedName) \(suggestedEmoji)
+        Topics inside it: \(topicList.isEmpty ? "(none yet)" : topicList)
+
+        Doc snippet (may be noisy OCR):
+        ---
+        \(snippet)
+        ---
+
+        Output ONLY a JSON object inside ```json fences:
+        {
+          "name": "kid-friendly constellation name, 2-4 words, Title Case",
+          "blurb": "1 short sentence (under 18 words) describing what these stars are about, child-friendly",
+          "skyStory": "1-2 magical sentences about why this constellation appeared in the sky (under 30 words)",
+          "course": "short subject + grade label like 'Math · Grades 3-4' or 'Reading · Grades 4-5'"
+        }
+
+        Rules:
+        - Name must NOT contain emoji (emoji shown separately).
+        - Blurb avoids jargon; speaks TO a kid.
+        - skyStory uses imagery (stars waking up, twinkling, whispering, etc.).
+        - No markdown outside the json fence. No commentary.
+
+        ```json
+        """
+    }
+
+    /// Soft-trims a phrase to the first N space-separated words, preserving casing.
+    private static func trimToWords(_ s: String, maxWords: Int) -> String {
+        let words = s.split(separator: " ").map(String.init)
+        if words.count <= maxWords { return s.trimmingCharacters(in: .whitespacesAndNewlines) }
+        return words.prefix(maxWords).joined(separator: " ")
+    }
 
     // MARK: Opening (intro + example)
 
@@ -217,6 +350,7 @@ enum LessonGenerator {
         System Prompt:
         Do not use thinking tokens.
         You are a strict but fair grader for an elementary school tutor.
+        Note: the student may answer in any language — accept linguistically-equivalent answers across languages (e.g. "8" / "eight" / "ocho" / "huit"). Output only the JSON verdict — no prose.
 
         User Prompt:
         Question: "\(problem.prompt)"
@@ -329,6 +463,7 @@ enum LessonGenerator {
         System Prompt:
         Do not use thinking tokens.
         You are Nova, a warm tutor for elementary kids. Use simple words and short sentences.
+        \(languageDirective())
 
         User Prompt:
         Write the OPENING of a tiny lesson on "\(ctx.node.label)" \(ctx.node.emoji).
@@ -377,15 +512,25 @@ enum LessonGenerator {
             """
         }
 
-        // Adaptive guidance the model can act on.
+        // Adaptive guidance the model can act on. For problem #1 we read the BKT
+        // model's predicted mastery — this is the cross-session signal that lets
+        // a returning student skip warm-up basics they already know.
         let adaptHint: String = {
             if history.isEmpty {
-                return """
-                This is a DIAGNOSTIC PROBE — the very first problem of the lesson. Pick \
-                a clear, central question for the topic at the EASIER end of the grade \
-                band. The student's answer here calibrates the rest of the lesson. \
-                Avoid edge cases or trick framings.
-                """
+                let priorMastery = BKTPipeline.estimatedMastery(for: ctx.node.id)
+                let pct = Int(priorMastery * 100)
+                let isFirst = BKTMastery.shared.mastery(for: ctx.node.id) == nil
+                let forgot = BKTMastery.shared.forgetProbability(for: ctx.node.id) ?? 0
+                if !isFirst && forgot >= 0.25 {
+                    return "BKT says the student knew this before but probably forgot (forgetting ~\(Int(forgot*100))%). Pick a gentle refresher problem covering the core idea — same difficulty as their first successful past attempt, not harder."
+                }
+                if priorMastery >= 0.7 {
+                    return "BKT says the student already shows STRONG mastery of this topic (\(pct)% prior). Skip easy basics — pick a harder application problem or a small twist to confirm depth."
+                }
+                if priorMastery <= 0.3 {
+                    return "BKT prior is LOW (\(pct)%). Pick a very gentle, concrete problem at the easier end of the grade band. Build confidence first."
+                }
+                return "BKT prior is mid-range (\(pct)%). Pick a clear, central diagnostic question at the easier end of the grade band so we can calibrate the rest of the lesson."
             }
             let recentWrongs = history.suffix(2).filter { !$0.correct }.count
             let recentRights = history.suffix(2).filter { $0.correct }.count
@@ -409,6 +554,7 @@ enum LessonGenerator {
         Do not use thinking tokens.
         You are Nova, a warm adaptive tutor for elementary kids. You generate ONE next
         problem at a time, tailored to how the student has done so far.
+        \(languageDirective())
 
         User Prompt:
         You are running a lesson on "\(ctx.node.label)" \(ctx.node.emoji).
@@ -464,6 +610,7 @@ enum LessonGenerator {
         System Prompt:
         Do not use thinking tokens.
         You are Nova, a kind, encouraging tutor for elementary kids.
+        \(languageDirective())
 
         User Prompt:
         The student is learning "\(ctx.node.label)" \(ctx.node.emoji).
@@ -490,6 +637,7 @@ enum LessonGenerator {
         System Prompt:
         Do not use thinking tokens.
         You are Nova, a kind tutor for elementary kids.
+        \(languageDirective())
 
         User Prompt:
         The student is stuck on this problem about "\(ctx.node.label)" \(ctx.node.emoji).
@@ -518,6 +666,7 @@ enum LessonGenerator {
         System Prompt:
         Do not use thinking tokens.
         You are Nova, a kind, patient tutor for elementary kids.
+        \(languageDirective())
 
         User Prompt:
         The student tried this problem about "\(ctx.node.label)" \(ctx.node.emoji) but
@@ -543,6 +692,9 @@ enum LessonGenerator {
     ) async throws -> String {
         try await withCheckedThrowingContinuation { (cont: CheckedContinuation<String, Error>) in
             var latest = ""
+            // Lesson generation produces structured JSON or backstage prose
+            // — never speak it. Chat surfaces (NovaAITab / lesson-chat) talk
+            // through RAGPipeline instead, which keeps TTS on.
             runModel(
                 prompt: prompt,
                 onDownload: { _ in },
@@ -553,7 +705,8 @@ enum LessonGenerator {
                 onComplete: { error in
                     if let error = error { cont.resume(throwing: error) }
                     else { cont.resume(returning: latest) }
-                }
+                },
+                speak: false
             )
         }
     }

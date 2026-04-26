@@ -10,5 +10,10 @@
 	<string>$(gemmaApiKey)</string>
 	<key>personalToken</key>
 	<string>$(personalToken)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

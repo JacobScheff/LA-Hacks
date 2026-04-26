@@ -46,6 +46,43 @@ struct TabHeader: View {
 }
 
 extension View {
+    /// Dismisses the keyboard when the user taps anywhere inside this view.
+    /// Uses `simultaneousGesture` so taps still propagate to buttons, scroll
+    /// recognizers, and other interactive controls beneath.
+    func dismissesKeyboard() -> some View {
+        self.simultaneousGesture(
+            TapGesture().onEnded {
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil, from: nil, for: nil
+                )
+            }
+        )
+    }
+
+    /// Adds a Star Hop! styled "Done" button to the keyboard's input accessory
+    /// toolbar. Apply directly to a `TextField` or `TextEditor` so the user
+    /// always has an explicit dismiss path — even when the surrounding view
+    /// can't catch a tap (e.g. small modals, chat input rows pinned to the
+    /// keyboard, or text fields that fill the screen).
+    func keyboardDoneToolbar() -> some View {
+        self.toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil, from: nil, for: nil
+                    )
+                } label: {
+                    Text("Done")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(hex: 0xFFE066))
+                }
+            }
+        }
+    }
+
     func sCard(stroke: Color = Color.white.opacity(0.12), padding: EdgeInsets = EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16)) -> some View {
         self
             .padding(padding)

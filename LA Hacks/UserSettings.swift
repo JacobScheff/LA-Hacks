@@ -33,7 +33,7 @@ final class UserSettings {
     private static let starMasteryKey      = "starMastery"
     private static let unlockedStickersKey        = "unlockedStickers"
     private static let stickerDatesKey            = "stickerEarnedDates"
-    private static let seededKey                  = "hasSeededInitialData"
+    private static let seededKey                  = "hasSeededInitialData_v2"
     private static let lessonsCompletedKey        = "lessonsCompleted"
     private static let perfectLessonsKey          = "perfectLessons"
     private static let hintFreeLessonsKey         = "hintFreeLessons"
@@ -262,48 +262,55 @@ final class UserSettings {
                 }
             }
             self.dailyXP = seedXP
-            // Seed star mastery so demo nodes show correct stages (matching original static statuses)
+            // Seed star mastery with a varied progression across constellations:
+            // 🐻 numbers + 🔷 shapes are fully done; 🦁 time mostly done;
+            // 🍕 fractions + 📚 reading halfway; 🪐 earth partial;
+            // ✏️ writing + 🦂 life barely started; 🐉 history almost untouched.
             self.starMastery = [
-                // Shining (≥ 0.65) — formerly .mastered
-                "count":0.9, "place":0.85, "add":0.88, "sub":0.80, "mul":0.92, "div":0.82, "odd":0.78,
-                "half":0.90, "frac":0.85,
-                "tri":0.85, "sq":0.90, "circ":0.88, "sym":0.80,
-                "clock":0.95, "min":0.80, "cal":0.85, "elapsed":0.78, "rasalas":0.70, "algenubi":0.70,
-                "coins":0.82, "change":0.75, "dollar":0.90,
-                "phon":0.95, "sight":0.82, "flu":0.80,
-                "caps":0.90, "noun":0.85, "sent":0.82,
-                "living":0.82, "plant":0.80, "animal":0.78,
-                "sun":0.90,
-                "ancient":0.85, "rastaban":0.78, "maps":0.80, "nu":0.72,
-                // Twinkling (0.33–0.65) — formerly .learning
-                "equiv":0.55, "compare":0.45, "poly":0.58, "angle":0.40,
-                "main":0.50, "detail":0.45,
-                "adj":0.50, "para":0.45,
-                "habitat":0.58, "food":0.40,
-                "season":0.50, "weather":0.52,
-                "native":0.50, "explor":0.40,
-                // Sleepy (0–0.33) — formerly .gap
-                "addfrac":0.20, "mixed":0.18, "simplify":0.18,
-                "area":0.22, "vol":0.15,
-                "infer":0.22, "theme":0.15,
-                "story":0.20, "opin":0.15, "edit":0.10,
-                "cycle":0.22, "eco":0.15,
-                "water":0.22, "rocks":0.15, "planet":0.18,
-                "colony":0.22, "rev":0.15, "gov":0.18,
+                // 🐻 Number Land — FULLY DONE (all shining)
+                "count":0.95, "place":0.88, "add":0.92, "sub":0.85, "mul":0.95, "div":0.82, "odd":0.78,
+
+                // 🔷 Shape City — FULLY DONE (all shining)
+                "tri":0.88, "sq":0.92, "circ":0.90, "poly":0.78, "sym":0.85,
+                "angle":0.72, "area":0.70, "vol":0.68,
+
+                // 🦁 Clock Cove — MOSTLY DONE (two still twinkling)
+                "clock":0.95, "min":0.82, "cal":0.85, "elapsed":0.72,
+                "rasalas":0.55, "algenubi":0.50,
+                "coins":0.82, "change":0.78, "dollar":0.90,
+
+                // 🍕 Pizza Planet — HALFWAY (intro shining, rest in progress; word stays locked)
+                "half":0.85, "frac":0.78,
+                "equiv":0.55, "compare":0.45,
+                "addfrac":0.30, "mixed":0.20, "simplify":0.15,
+
+                // 📚 Story Shore — HALFWAY (basics solid, comprehension still shaky)
+                "phon":0.92, "sight":0.78, "flu":0.70,
+                "main":0.45, "detail":0.40,
+                "infer":0.20, "theme":0.10,
+
+                // 🪐 Sky & Space — EARLY PROGRESS
+                "sun":0.78, "season":0.50, "weather":0.40,
+                "water":0.25, "rocks":0.15, "planet":0.10,
+
+                // ✏️ Inkwell Isle — BARELY STARTED
+                "caps":0.45, "noun":0.30, "sent":0.20,
+                "adj":0.15, "para":0.10,
+                "story":0.05, "opin":0.05, "edit":0.05,
+
+                // 🦂 Critter Cove — BARELY STARTED
+                "living":0.35, "plant":0.20, "animal":0.15,
+                "habitat":0.10, "food":0.05,
+                "cycle":0.05, "eco":0.0,
+
+                // 🐉 Time Travel Trail — ALMOST UNTOUCHED
+                "ancient":0.15, "rastaban":0.05, "maps":0.05,
             ]
             self.visitedNodeIds = Set(self.starMastery.keys)
             self.visitedConstellationIds = ["numbers","fractions","shapes","time","reading","writing","life","earth","history"]
             defaults.set(true, forKey: Self.seededKey)
         }
         Bundle.setLanguage(self.language)   // activate persisted language after all properties are set
-        // #region agent log
-        let _lang = self.language
-        let _raw = defaults.string(forKey: Self.languageKey) ?? "nil"
-        let _line = "{\"sessionId\":\"2da7cf\",\"hypothesisId\":\"D\",\"location\":\"UserSettings.swift:init\",\"message\":\"Language loaded from UserDefaults\",\"data\":{\"language\":\"\(_lang)\",\"rawDefaultsValue\":\"\(_raw)\"},\"timestamp\":\(Int(Date().timeIntervalSince1970*1000))}\n"
-        let _p = "/Users/genami133/Projects/LA-Hacks/.cursor/debug-2da7cf.log"
-        if let fh = FileHandle(forWritingAtPath: _p) { fh.seekToEndOfFile(); fh.write(_line.data(using: .utf8)!); fh.closeFile() }
-        else { try? _line.data(using: .utf8)?.write(to: URL(fileURLWithPath: _p)) }
-        // #endregion
     }
 
     // MARK: - Record study session

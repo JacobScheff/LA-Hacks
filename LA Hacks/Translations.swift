@@ -22,6 +22,39 @@ enum Translations {
         return nil
     }
 
+    // MARK: - Display names for AI prompts
+    // Maps the BCP-47 code stored in UserSettings.language to a natural English
+    // display name we can drop into AI prompts (e.g. "Always respond in Spanish.").
+
+    static let displayNames: [String: String] = [
+        "en":      "English",
+        "es":      "Spanish",
+        "fr":      "French",
+        "de":      "German",
+        "ja":      "Japanese",
+        "zh-Hans": "Simplified Chinese",
+        "zh-Hant": "Traditional Chinese",
+        "ar":      "Arabic",
+        "pt":      "Portuguese",
+        "ru":      "Russian",
+        "ko":      "Korean",
+        "hi":      "Hindi",
+        "it":      "Italian",
+        "tr":      "Turkish",
+        "nl":      "Dutch",
+        "pl":      "Polish",
+        "uk":      "Ukrainian",
+    ]
+
+    /// Resolve a BCP-47 / ISO 639 code to an English display name. Falls back to
+    /// Foundation's Locale lookup, then to the raw code.
+    static func displayName(forLanguage code: String) -> String {
+        if let n = displayNames[code] { return n }
+        let prefix = String(code.prefix(2))
+        if let n = displayNames[prefix] { return n }
+        return Locale(identifier: "en").localizedString(forLanguageCode: code) ?? code
+    }
+
     // MARK: - Translation table
     // Each inner dict only needs entries that differ from the English source key.
 
@@ -726,7 +759,7 @@ enum Translations {
             "🎉 Lesson complete, superstar!": "🎉 اكتمل الدرس، نجم!",
             "Back to galaxy 🌌": "عودة إلى المجرة 🌌",
             "You got it! ⭐": "أحسنت! ⭐",
-            "Awesome! 🎉": "رائع! 🎉",
+            "No worries — let's keep going!": "لا تقلق — لنواصل!",
         ],
 
         // ── Portuguese ───────────────────────────────────────────────────────

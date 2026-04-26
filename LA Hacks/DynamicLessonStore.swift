@@ -175,10 +175,16 @@ final class DynamicLessonStore: ObservableObject {
         // Pull the top-3 RAG windows from CurriculumStore most relevant to this star
         let ragMemory = topCurriculumWindows(for: node, constellationName: constellationName)
 
+        // BKT snapshot — mastery, forgetting, prereqs, misconceptions for this star.
+        // The LLM uses this to calibrate the example, problem difficulty, and
+        // misconception watchlist.
+        let bktBlock = BKTPipeline.hints(for: node.id).promptSection()
+
         // Combine uploaded curriculum passages with student memory from MemoryStore
         let studentMemory = MemoryStore.shared.contextForPrompt()
         let combined: String = {
             var parts: [String] = []
+            parts.append(bktBlock)
             if !ragMemory.isEmpty {
                 parts.append("## 📚 Relevant Uploaded Curriculum\n\(ragMemory)")
             }

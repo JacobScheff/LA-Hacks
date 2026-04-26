@@ -354,9 +354,20 @@ struct GalaxyScreen: View {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.9) {
             // commit nodes
+            var newNodesForLessons: [StarNode] = []
+            var pregenConstellationName = ""
+            var pregenCourse = ""
+            var pregenBlurb: String? = nil
+            var pregenSiblings: [String] = []
+
             if let new = built.newConstellation {
                 state.constellations.append(new)
                 state.pendingNewIds = Set(new.nodes.map { $0.id })
+                newNodesForLessons = new.nodes
+                pregenConstellationName = new.name
+                pregenCourse = new.course
+                pregenBlurb = new.blurb
+                pregenSiblings = new.nodes.map(\.label)
             } else if let targetId = built.targetConstellationId, !built.addedNodes.isEmpty {
                 if let idx = state.constellations.firstIndex(where: { $0.id == targetId }) {
                     let c = state.constellations[idx]
@@ -369,10 +380,98 @@ struct GalaxyScreen: View {
                     )
                     state.constellations[idx] = updated
                     state.pendingNewIds = Set(built.addedNodes.map { $0.id })
+                    newNodesForLessons = built.addedNodes
+                    pregenConstellationName = updated.name
+                    pregenCourse = updated.course
+                    pregenBlurb = updated.blurb
+                    pregenSiblings = updated.nodes.map(\.label)
                 }
             }
+
+            // Warm the lesson cache so taps on new stars open instantly.
+            // ModelRun returns a graceful error if a key is missing so
+            // pregeneration won't crash the upload flow on bad config.
+            if !newNodesForLessons.isEmpty {
+                DynamicLessonStore.shared.pregenerate(
+                    nodes: newNodesForLessons,
+                    constellationName: pregenConstellationName,
+                    course: pregenCourse,
+                    blurb: pregenBlurb,
+                    siblingLabels: pregenSiblings
+                )
+            }
+
+            // Refine constellation metadata (name / blurb / skyStory / course)
+            // from the uploaded text. Runs in the background so it doesn't
+            // block the reveal — when it returns, we patch the constellation
+            // in place and the UI picks up the new copy.
+            if built.newConstellation != nil, !text.isEmpty {
+                self.refineNewConstellationMetadata(
+                    text: text,
+                    suggestedName: built.result.constellationName,
+                    suggestedEmoji: built.result.emoji,
+                    topicLabels: built.result.addedTopics.map(\.label)
+                )
+            }
+
             self.revealResult = built.result
             self.uploadStage = .reveal
+        }
+    }
+
+    /// Asynchronously asks Nova to dream up a custom name / blurb / skyStory /
+    /// course label tied to the uploaded text, then swaps those fields into
+    /// the newest gen-* constellation in `state.constellations`.
+    private func refineNewConstellationMetadata(
+        text: String,
+        suggestedName: String,
+        suggestedEmoji: String,
+        topicLabels: [String]
+    ) {
+        Task {
+            guard let intro = await LessonGenerator.generateConstellationIntro(
+                uploadedText: text,
+                suggestedName: suggestedName,
+                suggestedEmoji: suggestedEmoji,
+                topicLabels: topicLabels
+            ) else { return }
+
+            await MainActor.run {
+                // Find the most recent gen-* constellation that matches the
+                // suggested fallback name, and swap its metadata in place.
+                guard let idx = state.constellations.lastIndex(where: {
+                    $0.id.hasPrefix("gen-") && $0.name == suggestedName
+                }) else { return }
+                let c = state.constellations[idx]
+                let updated = Constellation(
+                    id: c.id,
+                    name: intro.name,
+                    realName: c.realName,
+                    nickname: c.nickname,
+                    emoji: c.emoji,
+                    course: intro.course,
+                    blurb: intro.blurb,
+                    skyStory: intro.skyStory,
+                    centroid: c.centroid,
+                    nodes: c.nodes,
+                    edges: c.edges
+                )
+                state.constellations[idx] = updated
+
+                // If the reveal screen is currently showing this constellation,
+                // refresh its display copy so the user sees the new name too.
+                if let r = revealResult, r.constellationID == c.id {
+                    revealResult = GenerationResult(
+                        isNew: r.isNew,
+                        constellationID: r.constellationID,
+                        constellationName: intro.name,
+                        emoji: r.emoji,
+                        addedTopics: r.addedTopics,
+                        neighborTopics: r.neighborTopics,
+                        jumpTo: r.jumpTo
+                    )
+                }
+            }
         }
     }
 

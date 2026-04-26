@@ -3,87 +3,18 @@
 //
 // Floating centered popup (not a bottom sheet).
 // • Two tabs: 📷 Scan  |  📝 Paste
-// • X button top-right + tap-outside-to-dismiss
-// • Entire content scrolls inside the card
-// • Footer (Grow stars!) lives inside the scroll so it is never
-//   hidden behind the bottom nav bar
+// • Scan supports Camera, Photo Library, Document Scanner, and Files
+//   (PDFs are read via PDFKit; images flow through Apple's Vision OCR)
+// • OCR'd / pasted text is filtered into real topics by ContentExtractor,
+//   then grown into a constellation by buildGenerationResult().
 
 import SwiftUI
 import Vision
 import VisionKit
+import PDFKit
+import UniformTypeIdentifiers
 
-// MARK: - Topic recipes
-
-private struct TopicRecipe {
-    let keywords: [String]
-    let matchConstellationId: String?
-    let newName: String?
-    let newEmoji: String?
-    let newSkyStory: String?
-    let topics: [(label: String, emoji: String)]
-}
-
-private let TOPIC_RECIPES: [TopicRecipe] = [
-    TopicRecipe(
-        keywords: ["math","add","subtract","sum","arith","plus","minus"],
-        matchConstellationId: "numbers",
-        newName: nil, newEmoji: nil, newSkyStory: nil,
-        topics: [("Two-Digit Adding","🔟"), ("Carrying Over","🎒"), ("Number Lines","📏")]
-    ),
-    TopicRecipe(
-        keywords: ["fraction","pizza","half","slice","quarter"],
-        matchConstellationId: "fractions",
-        newName: nil, newEmoji: nil, newSkyStory: nil,
-        topics: [("Pizza Slicing","🍕"), ("Comparing ½ and ⅓","⚖️"), ("Decimals & Fractions","🔢")]
-    ),
-    TopicRecipe(
-        keywords: ["reading","story","passage","book","novel","character"],
-        matchConstellationId: "reading",
-        newName: nil, newEmoji: nil, newSkyStory: nil,
-        topics: [("Story Settings","🏞️"), ("Plot Twists","🌪️"), ("Character Feelings","😢")]
-    ),
-    TopicRecipe(
-        keywords: ["science","plant","animal","biolog","ecosystem"],
-        matchConstellationId: "life",
-        newName: nil, newEmoji: nil, newSkyStory: nil,
-        topics: [("Pollinators","🐝"), ("Animal Adaptations","🦎"), ("Forest Layers","🌳")]
-    ),
-    TopicRecipe(
-        keywords: ["history","ancient","rome","egypt","war","revolution"],
-        matchConstellationId: "history",
-        newName: nil, newEmoji: nil, newSkyStory: nil,
-        topics: [("Roman Roads","🛣️"), ("Pyramids","🔺"), ("Trade Routes","🐪")]
-    ),
-    TopicRecipe(
-        keywords: ["music","note","rhythm","song","piano","guitar"],
-        matchConstellationId: nil,
-        newName: "Melody Meadow", newEmoji: "🎵",
-        newSkyStory: "You discovered a brand new corner of the galaxy. Music has its own little cluster of stars now!",
-        topics: [("Reading Notes","🎼"), ("Beats & Rhythm","🥁"), ("Loud & Soft","🔊"), ("Major vs Minor","🎹"), ("Song Shapes","🎶")]
-    ),
-    TopicRecipe(
-        keywords: ["code","program","computer","scratch","python","js"],
-        matchConstellationId: nil,
-        newName: "Code Cosmos", newEmoji: "💻",
-        newSkyStory: "A new cluster of stars just blinked on. Computer thinking is its own kind of magic!",
-        topics: [("Sequences","➡️"), ("Loops","🔁"), ("If / Then","🔀"), ("Variables","📦"), ("Bugs!","🐛")]
-    ),
-    TopicRecipe(
-        keywords: [],
-        matchConstellationId: nil,
-        newName: "Curiosity Cluster", newEmoji: "🔭",
-        newSkyStory: "Whatever you uploaded sparked something brand-new! These stars came together just from your doc.",
-        topics: [("Big Idea #1","💡"), ("Key Term","🔑"), ("Tricky Bit","🤔"), ("Try It Out","🎯")]
-    ),
-]
-
-private func pickRecipe(text: String, fileName: String) -> TopicRecipe {
-    let haystack = (text + " " + fileName).lowercased()
-    for r in TOPIC_RECIPES {
-        if r.keywords.contains(where: { haystack.contains($0) }) { return r }
-    }
-    return TOPIC_RECIPES.last!
-}
+// MARK: - Cluster placement helpers
 
 private func freeClusterCenter(avoiding constellations: [Constellation]) -> CGPoint {
     let minGap: CGFloat = 120
@@ -150,78 +81,109 @@ struct GenerationOutcome {
 }
 
 func buildGenerationResult(text: String, fileName: String, constellations: [Constellation]) -> GenerationOutcome {
-    let recipe = pickRecipe(text: text, fileName: fileName)
+    let extracted = ContentExtractor.extract(text: text, fileName: fileName)
+    let topicTuples = extracted.topics.map { (label: $0.label, emoji: $0.emoji) }
+    let neighborTuples = extracted.neighborTopics.map { (label: $0.label, emoji: $0.emoji) }
     let now = String(Int(Date().timeIntervalSince1970 * 1000))
 
-    if let matchId = recipe.matchConstellationId,
-       let target = constellations.first(where: { $0.id == matchId }) {
+    // ── Branch 1: merge into an existing constellation ──────────────────
+    if let matchId = extracted.matchingConstellationId,
+       let target = constellations.first(where: { $0.id == matchId }),
+       !topicTuples.isEmpty {
         let baseX = target.centroid.x
         let baseY = target.centroid.y + 90
-        let positions = makeNewClusterPositions(count: recipe.topics.count, cx: baseX, cy: baseY)
-        let addedNodes: [StarNode] = recipe.topics.enumerated().map { i, t in
+        let positions = makeNewClusterPositions(count: topicTuples.count, cx: baseX, cy: baseY)
+        let addedNodes: [StarNode] = topicTuples.enumerated().map { i, t in
             StarNode(
                 id: "gen-\(now)-\(i)",
                 label: t.label, star: "New ✨", emoji: t.emoji,
                 x: positions[i].0, y: positions[i].1,
-                initiallyLocked: false, status: .gap, size: 5, mastery: 0
+                initiallyLocked: false, size: 5
             )
         }
         return GenerationOutcome(
-            result: GenerationResult(isNew: false, constellationID: target.id, constellationName: target.name, emoji: target.emoji,
-                                     addedTopics: recipe.topics, neighborTopics: [],
-                                     jumpTo: (baseX, baseY, 1.0)),
-            targetConstellationId: target.id, addedNodes: addedNodes, newConstellation: nil
+            result: GenerationResult(
+                isNew: false,
+                constellationID: target.id,
+                constellationName: target.name,
+                emoji: target.emoji,
+                addedTopics: topicTuples,
+                neighborTopics: [],
+                jumpTo: (baseX, baseY, 1.0)
+            ),
+            targetConstellationId: target.id,
+            addedNodes: addedNodes,
+            newConstellation: nil
         )
     }
 
+    // ── Branch 2: spawn a brand-new constellation ──────────────────────
     let freeCenter = freeClusterCenter(avoiding: constellations)
     let cx = freeCenter.x, cy = freeCenter.y
-    let positions = makeNewClusterPositions(count: recipe.topics.count, cx: cx, cy: cy)
+    let positions = makeNewClusterPositions(count: topicTuples.count, cx: cx, cy: cy)
     let newId = "gen-\(now)"
-    let primary: [StarNode] = recipe.topics.enumerated().map { i, t in
+    let primary: [StarNode] = topicTuples.enumerated().map { i, t in
         StarNode(
             id: "\(newId)-\(i)",
             label: t.label, star: "New ✨", emoji: t.emoji,
             x: positions[i].0, y: positions[i].1,
-            initiallyLocked: false, status: .gap, size: 5, mastery: 0
+            initiallyLocked: false, size: 5
         )
     }
-    let neighborPool: [(label: String, emoji: String)] = [
-        ("Bonus Idea","🎁"), ("Try This Too","🌱"), ("Cool Detail","🔍"),
-        ("Big Picture","🖼️"), ("Real-world Use","🌎"),
-    ]
-    var neighborTopics: [(label: String, emoji: String)] = []
-    let neighborCount = min(3, primary.count)
+    let neighborCount = min(neighborTuples.count, primary.count)
     let neighbors: [StarNode] = (0..<neighborCount).map { i in
-        let pick = neighborPool[i % neighborPool.count]
-        neighborTopics.append(pick)
+        let pick = neighborTuples[i]
         let n = primary[i]
-        let ang = Double(i) / Double(neighborCount) * .pi * 2 + .pi / 6
+        let ang = Double(i) / Double(max(neighborCount, 1)) * .pi * 2 + .pi / 6
         let dist: CGFloat = 75 + CGFloat(i) * 15
         return StarNode(
             id: "\(newId)-nb-\(i)",
             label: pick.label, star: "Sleepy", emoji: pick.emoji,
             x: n.x + CGFloat(cos(ang)) * dist,
             y: n.y + CGFloat(sin(ang)) * dist,
-            initiallyLocked: true, status: .locked, size: 3.5, mastery: nil
+            initiallyLocked: true, size: 3.5
         )
     }
     var edges: [Edge] = []
-    for i in 0..<(primary.count - 1) { edges.append(Edge(a: primary[i].id, b: primary[i + 1].id)) }
-    for (i, nn) in neighbors.enumerated() { edges.append(Edge(a: primary[i].id, b: nn.id)) }
+    if primary.count >= 2 {
+        for i in 0..<(primary.count - 1) {
+            edges.append(Edge(a: primary[i].id, b: primary[i + 1].id))
+        }
+    }
+    for (i, nn) in neighbors.enumerated() {
+        edges.append(Edge(a: primary[i].id, b: nn.id))
+    }
+
+    let courseLabel = extracted.subject == .generic
+        ? "Just for you · made by Nova"
+        : "\(extracted.subject.suggestedName) · made by Nova"
 
     let newConstellation = Constellation(
-        id: newId, name: recipe.newName ?? "New Skies", realName: "A new constellation",
-        nickname: "", emoji: recipe.newEmoji ?? "✨", course: "Just for you · made by Nova",
+        id: newId,
+        name: extracted.suggestedName,
+        realName: "A new constellation",
+        nickname: "",
+        emoji: extracted.suggestedEmoji,
+        course: courseLabel,
         blurb: "New stars Nova found in your doc.",
-        skyStory: recipe.newSkyStory ?? "Nova made this constellation just for you.",
-        centroid: CGPoint(x: cx, y: cy), nodes: primary + neighbors, edges: edges
+        skyStory: extracted.suggestedSkyStory,
+        centroid: CGPoint(x: cx, y: cy),
+        nodes: primary + neighbors,
+        edges: edges
     )
     return GenerationOutcome(
-        result: GenerationResult(isNew: true, constellationID: newId, constellationName: recipe.newName ?? "New Skies",
-                                 emoji: recipe.newEmoji ?? "✨", addedTopics: recipe.topics,
-                                 neighborTopics: neighborTopics, jumpTo: (cx, cy, 0.9)),
-        targetConstellationId: nil, addedNodes: [], newConstellation: newConstellation
+        result: GenerationResult(
+            isNew: true,
+            constellationID: newId,
+            constellationName: extracted.suggestedName,
+            emoji: extracted.suggestedEmoji,
+            addedTopics: topicTuples,
+            neighborTopics: neighborTuples.prefix(neighborCount).map { $0 },
+            jumpTo: (cx, cy, 0.9)
+        ),
+        targetConstellationId: nil,
+        addedNodes: [],
+        newConstellation: newConstellation
     )
 }
 
@@ -251,6 +213,7 @@ struct UploadModal: View {
     @State private var showImagePicker = false
     @State private var imagePickerSource: UIImagePickerController.SourceType = .camera
     @State private var showDocumentCamera = false
+    @State private var showFilePicker = false
     @State private var scannedPreviewImage: UIImage? = nil
 
     enum ScanStatus: Equatable {
@@ -296,6 +259,8 @@ struct UploadModal: View {
                     cardContent
                         .frame(width: cardWidth)
                 }
+                .scrollDismissesKeyboard(.interactively)
+                .dismissesKeyboard()
                 .frame(width: cardWidth, height: cardHeight)
                 .background(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -331,6 +296,12 @@ struct UploadModal: View {
             DocumentCameraRepresentable { images in
                 if let first = images.first { scannedPreviewImage = first }
                 runOCROnPages(images, source: "DocumentScan(\(images.count)p)")
+            }
+        }
+        // Files (PDFs + images) sheet
+        .sheet(isPresented: $showFilePicker) {
+            DocumentPickerRepresentable { url in
+                handlePickedFile(url: url)
             }
         }
     }
@@ -477,11 +448,16 @@ struct UploadModal: View {
             .frame(maxWidth: .infinity)
             .frame(height: 140)
 
-            // Source buttons
-            HStack(spacing: 8) {
-                sourceBtn("📷 Camera")    { imagePickerSource = .camera;       showImagePicker = true }
-                sourceBtn("🖼️ Library")   { imagePickerSource = .photoLibrary; showImagePicker = true }
-                sourceBtn("📄 Document")  { showDocumentCamera = true }
+            // Source buttons — two rows so labels stay readable
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    sourceBtn("📷 Camera")  { imagePickerSource = .camera;       showImagePicker = true }
+                    sourceBtn("🖼️ Library") { imagePickerSource = .photoLibrary; showImagePicker = true }
+                }
+                HStack(spacing: 8) {
+                    sourceBtn("📄 Document") { showDocumentCamera = true }
+                    sourceBtn("📁 Files")    { showFilePicker = true }
+                }
             }
 
             // Extracted text preview
@@ -581,6 +557,7 @@ struct UploadModal: View {
                         .allowsHitTesting(false)
                 }
             }
+            .keyboardDoneToolbar()
     }
 
     // MARK: - Examples
@@ -684,6 +661,131 @@ struct UploadModal: View {
         MemoryStore.shared.saveCurriculumScan(chunk)
         scanStatus = .done(lines: lines.count, words: chunk.wordCount, ragWindows: chunk.ragChunks().count)
     }
+
+    // MARK: - File picker handler
+
+    /// Routes a file the user picked from the Files app:
+    ///   • PDFs → PDFKit text layer (fallback to per-page OCR on rendered images)
+    ///   • Images (jpg, png, heic…) → existing Vision OCR pipeline
+    ///   • Plain text / markdown → use the text directly
+    private func handlePickedFile(url: URL) {
+        scanStatus = .scanning
+        fileName = url.lastPathComponent
+        scannedPreviewImage = nil
+
+        // The picker hands us a security-scoped URL; we have to balance start/stop.
+        let needsScope = url.startAccessingSecurityScopedResource()
+
+        Task {
+            defer { if needsScope { url.stopAccessingSecurityScopedResource() } }
+
+            let ext = url.pathExtension.lowercased()
+            let label = "Files(\(url.lastPathComponent))"
+
+            // Plain text & markdown — read directly
+            if ["txt", "md", "markdown", "rtf"].contains(ext) {
+                if let raw = try? String(contentsOf: url, encoding: .utf8) {
+                    let lines = raw.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+                    await finishOCR(lines: lines, source: label)
+                } else {
+                    await MainActor.run { scanStatus = .failed("Couldn't read text file.") }
+                }
+                return
+            }
+
+            // Images
+            if ["jpg", "jpeg", "png", "heic", "heif", "webp", "bmp", "tif", "tiff"].contains(ext),
+               let data = try? Data(contentsOf: url),
+               let img = UIImage(data: data) {
+                await MainActor.run { scannedPreviewImage = img }
+                await performOCR(cgImage: img.cgImage, source: label)
+                return
+            }
+
+            // PDFs
+            if ext == "pdf" {
+                await processPDF(url: url, label: label)
+                return
+            }
+
+            // Fallback: try as image data
+            if let data = try? Data(contentsOf: url),
+               let img = UIImage(data: data) {
+                await MainActor.run { scannedPreviewImage = img }
+                await performOCR(cgImage: img.cgImage, source: label)
+                return
+            }
+
+            await MainActor.run {
+                scanStatus = .failed("Unsupported file type — try a PDF, image, or .txt.")
+            }
+        }
+    }
+
+    /// Extract text from a PDF. Tries the embedded text layer first; if the
+    /// document is a scanned-image PDF (no text layer), each page is rendered
+    /// to a UIImage and pushed through Vision OCR.
+    private func processPDF(url: URL, label: String) async {
+        guard let doc = PDFDocument(url: url) else {
+            await MainActor.run { scanStatus = .failed("Couldn't open PDF.") }
+            return
+        }
+
+        // 1. Pull first-page preview for the UI
+        if let firstPage = doc.page(at: 0) {
+            let preview = firstPage.thumbnail(of: CGSize(width: 480, height: 640), for: .cropBox)
+            await MainActor.run { scannedPreviewImage = preview }
+        }
+
+        // 2. Try the text layer
+        var rawLines: [String] = []
+        for i in 0..<doc.pageCount {
+            guard let page = doc.page(at: i) else { continue }
+            let pageText = page.string ?? ""
+            let pageLines = pageText
+                .split(separator: "\n", omittingEmptySubsequences: true)
+                .map { String($0).trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            if !pageLines.isEmpty {
+                if doc.pageCount > 1 { rawLines.append("--- Page \(i + 1) ---") }
+                rawLines.append(contentsOf: pageLines)
+            }
+        }
+
+        if rawLines.count >= 2 {
+            await finishOCR(lines: rawLines, source: "PDF(\(doc.pageCount)p)")
+            return
+        }
+
+        // 3. Image-only PDF — OCR each rendered page
+        var images: [UIImage] = []
+        for i in 0..<doc.pageCount {
+            guard let page = doc.page(at: i) else { continue }
+            let pageRect = page.bounds(for: .mediaBox)
+            // Render at 2× for better OCR accuracy without blowing up memory
+            let scale: CGFloat = 2.0
+            let renderSize = CGSize(width: pageRect.width * scale, height: pageRect.height * scale)
+            let renderer = UIGraphicsImageRenderer(size: renderSize)
+            let image = renderer.image { ctx in
+                UIColor.white.setFill()
+                ctx.fill(CGRect(origin: .zero, size: renderSize))
+                ctx.cgContext.translateBy(x: 0, y: renderSize.height)
+                ctx.cgContext.scaleBy(x: scale, y: -scale)
+                page.draw(with: .mediaBox, to: ctx.cgContext)
+            }
+            images.append(image)
+        }
+
+        if images.isEmpty {
+            await MainActor.run { scanStatus = .failed("PDF had no readable pages.") }
+            return
+        }
+
+        await MainActor.run {
+            if scannedPreviewImage == nil { scannedPreviewImage = images.first }
+        }
+        runOCROnPages(images, source: "PDF(\(images.count)p, OCR)")
+    }
 }
 
 // MARK: - UIKit bridges
@@ -735,6 +837,36 @@ private struct DocumentCameraRepresentable: UIViewControllerRepresentable {
         func documentCameraViewController(_ controller: VNDocumentCameraViewController,
                                           didFailWithError error: Error) {
             controller.dismiss(animated: true); onFinish([])
+        }
+    }
+}
+
+private struct DocumentPickerRepresentable: UIViewControllerRepresentable {
+    let onPick: (URL) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(onPick: onPick) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let types: [UTType] = [.pdf, .image, .plainText, .text, .rtf, .content, .data]
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)
+        picker.allowsMultipleSelection = false
+        picker.shouldShowFileExtensions = true
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let onPick: (URL) -> Void
+        init(onPick: @escaping (URL) -> Void) { self.onPick = onPick }
+        func documentPicker(_ controller: UIDocumentPickerViewController,
+                            didPickDocumentsAt urls: [URL]) {
+            controller.dismiss(animated: true)
+            if let first = urls.first { onPick(first) }
+        }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            controller.dismiss(animated: true)
         }
     }
 }

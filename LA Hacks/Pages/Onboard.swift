@@ -211,6 +211,12 @@ struct Onboard: View {
             TextField("", text: $userName, prompt: Text("Enter your name...").foregroundColor(.white.opacity(0.4)))
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
+                .submitLabel(.done)
+                .onSubmit {
+                    if !userName.trimmingCharacters(in: .whitespaces).isEmpty {
+                        step = .interests
+                    }
+                }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 18)
                 .background(
@@ -222,6 +228,7 @@ struct Onboard: View {
                         .stroke(Color(hex: 0xFFE066, opacity: 0.5), lineWidth: 2)
                 )
                 .padding(.horizontal, 24)
+                .keyboardDoneToolbar()
 
             Spacer()
 

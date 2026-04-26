@@ -106,10 +106,7 @@ struct LearningGalaxyView: View {
             }
 
             Tab(value: GalaxyTab.study) {
-                StudyTab(onBeginQuest: {
-                    trainingNode = LearningGalaxyView.makeSyntheticNode(
-                        label: "Adding Slices", emoji: "🍕")
-                })
+                StudyTab(onBeginQuest: { trainingNode = $0 })
                 .background { tabBackground }
                 .id(contentID)
             } label: {
@@ -185,13 +182,11 @@ struct LearningGalaxyView: View {
         StarNode(
             id: "synthetic-\(label.lowercased().replacingOccurrences(of: " ", with: "-"))",
             label: label,
-            constellationID: "synthetic",
             star: nil,
             emoji: emoji,
             x: 0, y: 0,
-            status: status,
-            size: 5,
-            mastery: status == .mastered ? 1.0 : 0.4
+            initiallyLocked: initiallyLocked,
+            size: 5
         )
     }
 

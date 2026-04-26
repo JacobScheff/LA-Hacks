@@ -19,8 +19,12 @@ class SpeechManager {
     static let shared = SpeechManager()
     let synthesizer: AVSpeechSynthesizer
     var elevenLabsPlayer: AVAudioPlayer?
-    private var cachedVoice: AVSpeechSynthesisVoice?
-    
+
+    /// Cache of resolved voices keyed by BCP-47 / language code. We re-use voices
+    /// across utterances because AVSpeechSynthesisVoice(language:) is expensive,
+    /// but we DO swap voices when the user changes language at runtime.
+    private var voiceCache: [String: AVSpeechSynthesisVoice] = [:]
+
     private init() {
         do {
             try AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio, options: [.duckOthers, .mixWithOthers])
@@ -29,34 +33,67 @@ class SpeechManager {
             print("SpeechManager AVAudioSession init error: \(error.localizedDescription)")
         }
         synthesizer = AVSpeechSynthesizer()
-        
-        // Cache the voice to prevent expensive OS lookups during high-speed streaming
-        cachedVoice = AVSpeechSynthesisVoice(language: "en-GB")
     }
-    
+
+    /// Map our app language code to the BCP-47 locale identifier
+    /// `AVSpeechSynthesisVoice(language:)` expects.
+    private func ttsLocale(for appLang: String) -> String {
+        switch appLang {
+        case "en":      return "en-US"
+        case "es":      return "es-ES"
+        case "fr":      return "fr-FR"
+        case "de":      return "de-DE"
+        case "ja":      return "ja-JP"
+        case "zh-Hans": return "zh-CN"
+        case "zh-Hant": return "zh-TW"
+        case "ar":      return "ar-SA"
+        case "pt":      return "pt-BR"
+        case "ru":      return "ru-RU"
+        case "ko":      return "ko-KR"
+        case "hi":      return "hi-IN"
+        case "it":      return "it-IT"
+        case "tr":      return "tr-TR"
+        case "nl":      return "nl-NL"
+        case "pl":      return "pl-PL"
+        case "uk":      return "uk-UA"
+        default:        return appLang
+        }
+    }
+
+    /// Resolve a voice for the current user language, falling back gracefully
+    /// to en-US if the OS doesn't ship a matching voice.
+    private func voice(for appLang: String) -> AVSpeechSynthesisVoice? {
+        if let cached = voiceCache[appLang] { return cached }
+        let primary = ttsLocale(for: appLang)
+        if let v = AVSpeechSynthesisVoice(language: primary) {
+            voiceCache[appLang] = v
+            NSLog("[i18n] SpeechManager picked voice \(primary) for app lang \(appLang)")
+            return v
+        }
+        NSLog("[i18n] SpeechManager: no voice for \(primary), falling back to en-US")
+        let fallback = AVSpeechSynthesisVoice(language: "en-US")
+        if let f = fallback { voiceCache[appLang] = f }
+        return fallback
+    }
+
     func speak(_ transcript: String) {
-        // Strip out XML/HTML characters to explicitly prevent iOS from attempting to parse
-        // this as SSML, which causes the "No root nodes found" crash.
         let sanitized = transcript
             .replacingOccurrences(of: "<", with: "")
             .replacingOccurrences(of: ">", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-            
+
         guard !sanitized.isEmpty else { return }
-            
+
         let utterance = AVSpeechUtterance(string: sanitized)
         utterance.rate = 0.57
         utterance.pitchMultiplier = 0.8
         utterance.postUtteranceDelay = 0.2
         utterance.volume = 0.8
 
-        if let voice = cachedVoice {
-            utterance.voice = voice
-        }
-
+        utterance.voice = voice(for: UserSettings.shared.language)
         synthesizer.speak(utterance)
     }
-    
+
     func stop() {
         synthesizer.stopSpeaking(at: .immediate)
         elevenLabsPlayer?.stop()
@@ -121,33 +158,49 @@ func streamTTS(text: String, isFinal: Bool) {
 
 // MARK: - Model Runner Function
 
+/// Runs the LLM and streams tokens to `onStream`.
+///
+/// `speak` controls whether output is sent to the TTS pipeline. The chat-tutor
+/// path leaves it `true`; structured-JSON callers (LessonGenerator,
+/// MemoryStore compression) pass `false` so the user never hears raw JSON
+/// fences or backstage scaffolding read aloud.
 func runModel(
     prompt: String,
     onDownload: @escaping (Float) -> Void,
     onStream: @escaping (String) -> Void,
-    onComplete: @escaping (Error?) -> Void
+    onComplete: @escaping (Error?) -> Void,
+    speak: Bool = true
 ) {
     let isOnboarded = UserDefaults.standard.bool(forKey: "onboarded")
     let isConnected = UserDefaults.standard.bool(forKey: "isConnected")
-    
-    resetTTS()
-    
+
+    if speak { resetTTS() }
+
     if isConnected && isOnboarded {
         print("Calling Model Run With Google Gemma API")
-        runModelCloud(prompt: prompt, onStream: onStream, onComplete: onComplete)
+        runModelCloud(prompt: prompt, onStream: onStream, onComplete: onComplete, speak: speak)
         return
     }
-    
+
     print("Calling Model Run With Zetic AI")
-    
+
     // FIX: Replaced `Task.detached` with GCD. `waitForNextToken()` is a deeply synchronous,
     // blocking C++ call. Running it inside Swift Concurrency violates the cooperative thread
     // pool, which triggers the "unsafeForcedSync" runtime warnings you saw. GCD safely bypasses this.
     DispatchQueue.global(qos: .userInitiated).async {
         do {
             if sharedModel == nil {
+                guard let personalToken = Bundle.main.infoDictionary?["personalToken"] as? String,
+                      !personalToken.isEmpty else {
+                    print("ModelRun: missing 'personalToken' in Info.plist — skipping local model load.")
+                    onComplete(NSError(
+                        domain: "ModelRun", code: -1,
+                        userInfo: [NSLocalizedDescriptionKey: "Local model not configured (personalToken missing)."]
+                    ))
+                    return
+                }
                 sharedModel = try ZeticMLangeLLMModel(
-                    personalKey: Bundle.main.infoDictionary?["personalToken"] as! String,
+                    personalKey: personalToken,
                     name: "changgeun/gemma-4-E2B-it",
                     version: 1,
                     modelMode: LLMModelMode.RUN_SPEED,
@@ -170,15 +223,17 @@ func runModel(
                 }
 
                 buffer.append(waitResult.token)
-                
+
                 let filtered = filterThinkingTags(from: buffer)
                 onStream(filtered)
-                streamTTS(text: filtered, isFinal: false)
+                if speak { streamTTS(text: filtered, isFinal: false) }
             }
 
-            let finalFiltered = filterThinkingTags(from: buffer)
-            streamTTS(text: finalFiltered, isFinal: true)
-            
+            if speak {
+                let finalFiltered = filterThinkingTags(from: buffer)
+                streamTTS(text: finalFiltered, isFinal: true)
+            }
+
             onComplete(nil)
             print("Finished generation successfully.")
 
@@ -191,16 +246,30 @@ func runModel(
 
 
 // MARK: - ElevenLabs Config & Logic
-let elevenLabsAPIKey = Bundle.main.infoDictionary?["elevenLabsAPIKey"] as! String
-let elevenLabsVoiceId = Bundle.main.infoDictionary?["elevenLabsVoiceId"] as! String
+
+/// Read at use-site (not as eager top-level lets) so a missing key can fall back
+/// to local TTS instead of crashing the app.
+private var elevenLabsAPIKey: String? {
+    Bundle.main.infoDictionary?["elevenLabsAPIKey"] as? String
+}
+private var elevenLabsVoiceId: String? {
+    Bundle.main.infoDictionary?["elevenLabsVoiceId"] as? String
+}
 
 func speak11Labs(transcript: String) {
-    guard let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(elevenLabsVoiceId)/stream") else { return }
+    guard let voiceId = elevenLabsVoiceId, !voiceId.isEmpty,
+          let apiKey = elevenLabsAPIKey, !apiKey.isEmpty,
+          let url = URL(string: "https://api.elevenlabs.io/v1/text-to-speech/\(voiceId)/stream")
+    else {
+        print("ElevenLabs: missing API key or voice id — falling back to local TTS.")
+        Task { @MainActor in SpeechManager.shared.speak(transcript) }
+        return
+    }
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(elevenLabsAPIKey, forHTTPHeaderField: "xi-api-key")
+    request.setValue(apiKey, forHTTPHeaderField: "xi-api-key")
     request.setValue("audio/mpeg", forHTTPHeaderField: "Accept")
 
     let payload: [String: Any] = [
@@ -242,14 +311,27 @@ func speak11Labs(transcript: String) {
 func runModelCloud(
     prompt: String,
     onStream: @escaping (String) -> Void,
-    onComplete: @escaping (Error?) -> Void
+    onComplete: @escaping (Error?) -> Void,
+    speak: Bool = true
 ) {
     Task.detached {
-        let gemmaApiKey = Bundle.main.infoDictionary?["gemmaApiKey"] as! String
+        guard let gemmaApiKey = Bundle.main.infoDictionary?["gemmaApiKey"] as? String,
+              !gemmaApiKey.isEmpty else {
+            print("ModelRunCloud: missing 'gemmaApiKey' in Info.plist — aborting cloud call.")
+            onComplete(NSError(
+                domain: "ModelRunCloud", code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Cloud model not configured (gemmaApiKey missing)."]
+            ))
+            return
+        }
         let modelName = "gemma-4-31b-it"
         let urlString = "https://generativelanguage.googleapis.com/v1beta/models/\(modelName):streamGenerateContent?alt=sse&key=\(gemmaApiKey)"
-        
-        guard let url = URL(string: urlString) else { return }
+
+        guard let url = URL(string: urlString) else {
+            onComplete(NSError(domain: "ModelRunCloud", code: -2,
+                               userInfo: [NSLocalizedDescriptionKey: "Bad cloud model URL."]))
+            return
+        }
         
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -301,14 +383,16 @@ func runModelCloud(
                         if chunkAdded {
                             let filtered = filterThinkingTags(from: buffer)
                             onStream(filtered)
-                            streamTTS(text: filtered, isFinal: false)
+                            if speak { streamTTS(text: filtered, isFinal: false) }
                         }
                     }
                 }
             }
-            
-            let finalFiltered = filterThinkingTags(from: buffer)
-            streamTTS(text: finalFiltered, isFinal: true)
+
+            if speak {
+                let finalFiltered = filterThinkingTags(from: buffer)
+                streamTTS(text: finalFiltered, isFinal: true)
+            }
             onComplete(nil)
             
         } catch {

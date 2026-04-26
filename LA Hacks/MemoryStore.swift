@@ -192,7 +192,8 @@ final class MemoryStore: ObservableObject {
                     onComplete: { error in
                         if let error = error { cont.resume(throwing: error) }
                         else { cont.resume(returning: latest) }
-                    }
+                    },
+                    speak: false
                 )
             }
         } catch {

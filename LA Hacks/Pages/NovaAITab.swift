@@ -352,6 +352,7 @@ struct NovaAITab: View {
             }
         }
         .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: - Messages
@@ -560,6 +561,7 @@ struct NovaAITab: View {
                         if canSend { sendMessage() }
                     }
                 }
+                .keyboardDoneToolbar()
 
             Button(action: sendMessage) {
                 Image(systemName: "arrow.up.circle.fill")
