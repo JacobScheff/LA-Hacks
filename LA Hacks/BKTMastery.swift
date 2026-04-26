@@ -1,7 +1,7 @@
 // BKTMastery.swift
 //  LA Hacks
 //
-//  Created by Yirui Song on 4/26/26.
+//  Created by Yirui Song on 4/26/26
 //
 // Bayesian Knowledge Tracing (BKT) per star node.
 //
