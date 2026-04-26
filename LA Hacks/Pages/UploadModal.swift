@@ -247,7 +247,13 @@ struct UploadModal: View {
     ]
 
     private var canSubmit: Bool {
-        !text.trimmingCharacters(in: .whitespaces).isEmpty && scanStatus != .scanning
+        switch tab {
+        case .scan:
+            if case .done = scanStatus { return true }
+            return false
+        case .paste:
+            return !text.trimmingCharacters(in: .whitespaces).isEmpty
+        }
     }
 
     // MARK: - Body
@@ -371,11 +377,15 @@ struct UploadModal: View {
                     .padding(.top, 16)
             }
 
-            // ── Grow stars button — inside scroll, always visible ──────────
-            growButton
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 28)   // generous bottom so it clears nav bar
+            // ── Grow stars button — only appears once content is ready ───
+            if canSubmit {
+                growButton
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 28)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.78), value: canSubmit)
+            }
         }
     }
 
@@ -584,6 +594,7 @@ struct UploadModal: View {
 
     // MARK: - Grow stars button
 
+    // Only rendered when canSubmit == true — no dimming needed
     private var growButton: some View {
         Button(action: { onGenerate(text, fileName) }) {
             HStack(spacing: 8) {
@@ -591,22 +602,18 @@ struct UploadModal: View {
                 Text("Grow stars!")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
             }
-            .foregroundColor(canSubmit ? Color(hex: 0x3A2A00) : Color(hex: 0x3A2A00).opacity(0.5))
+            .foregroundColor(Color(hex: 0x3A2A00))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
             .background(
-                Capsule().fill(
-                    canSubmit
-                    ? AnyShapeStyle(LinearGradient(
-                        colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing))
-                    : AnyShapeStyle(Color(hex: 0xFFE066, opacity: 0.22))
-                )
+                Capsule().fill(LinearGradient(
+                    colors: [Color(hex: 0xFFE066), Color(hex: 0xFFB300)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
             )
-            .shadow(color: canSubmit ? Color(hex: 0xFFB300, opacity: 0.45) : .clear, radius: 14, x: 0, y: 5)
+            .shadow(color: Color(hex: 0xFFB300, opacity: 0.45), radius: 14, x: 0, y: 5)
         }
         .buttonStyle(.plain)
-        .disabled(!canSubmit)
     }
 
     // MARK: - OCR
