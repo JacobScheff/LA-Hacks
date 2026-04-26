@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Bucket
+   uuid = "3B5AF6D7-4BB7-4C9E-945F-68DA18889FF8"
+   type = "1"
+   version = "2.0">
+   <Breakpoints>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "AA20E537-EB1A-4CB0-944A-D2055F1F4198"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "LA Hacks/GalaxyTabs.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "1359"
+            endingLineNumber = "1359"
+            landmarkName = "body"
+            landmarkType = "24">
+            <Locations>
+               <Location
+                  uuid = "AA20E537-EB1A-4CB0-944A-D2055F1F4198 - 7de7ba08b6a01dba"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #2 () -&gt; SwiftUI.TupleView&lt;(&lt;&lt;opaque return type of LA_Hacks.SettingsTab.profileSection : some&gt;&gt;.0, &lt;&lt;opaque return type of LA_Hacks.SettingsTab.soundSection : some&gt;&gt;.0, &lt;&lt;opaque return type of LA_Hacks.SettingsTab.reminderSection : some&gt;&gt;.0, &lt;&lt;opaque return type of LA_Hacks.SettingsTab.grownUpSection : some&gt;&gt;.0, &lt;&lt;opaque return type of LA_Hacks.SettingsTab.aboutSection : some&gt;&gt;.0)&gt; in closure #1 () -&gt; SwiftUI.TupleView&lt;(&lt;&lt;opaque return type of SwiftUI.View.padding(SwiftUI.Edge.Set, Swift.Optional&lt;CoreGraphics.CGFloat&gt;) -&gt; some&gt;&gt;.0, LA_Hacks.TabHeader, &lt;&lt;opaque return type of SwiftUI.View.padding(SwiftUI.Edge.Set, Swift.Optional&lt;CoreGraphics.CGFloat&gt;) -&gt; some&gt;&gt;.0)&gt; in closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.padding(SwiftUI.Edge.Set, Swift.Optional&lt;CoreGraphics.CGFloat&gt;) -&gt; some&gt;&gt;.0 in LA_Hacks.SettingsTab.body.getter : some"
+                  moduleName = "LA Hacks.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/genami133/Projects/LA-Hacks/LA%20Hacks/GalaxyTabs.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1359"
+                  endingLineNumber = "1359">
+               </Location>
+               <Location
+                  uuid = "AA20E537-EB1A-4CB0-944A-D2055F1F4198 - e1f2b3ea78457e76"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "closure #1 () -&gt; &lt;&lt;opaque return type of SwiftUI.View.padding(SwiftUI.Edge.Set, Swift.Optional&lt;CoreGraphics.CGFloat&gt;) -&gt; some&gt;&gt;.0 in LA_Hacks.SettingsTab.body.getter : some"
+                  moduleName = "LA Hacks.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/genami133/Projects/LA-Hacks/LA%20Hacks/GalaxyTabs.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "1359"
+                  endingLineNumber = "1359">
+               </Location>
+            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+   </Breakpoints>
+</Bucket>
