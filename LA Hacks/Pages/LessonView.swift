@@ -342,6 +342,23 @@ struct LessonView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .dismissesKeyboard()
+        .onAppear { startIntro() }
+        .overlay {
+            if let sticker = currentStickerToast {
+                StickerEarnedToast(sticker: sticker) {
+                    currentStickerToast = nil
+                    if !stickerQueue.isEmpty {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            currentStickerToast = stickerQueue.removeFirst()
+                        }
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(100)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: currentStickerToast != nil)
     }
 
     // MARK: - Header

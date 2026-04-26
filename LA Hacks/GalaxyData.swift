@@ -87,7 +87,6 @@ extension MasteryStage {
 struct StarNode: Identifiable, Hashable {
     let id: String
     let label: String
-    let constellationID: String
     /// Real star this node sits on (e.g. "Polaris", "Vega"). Optional for synthetic.
     let star: String?
     /// Kid-friendly emoji shown alongside the label.
@@ -144,6 +143,7 @@ struct Constellation: Identifiable, Hashable {
 /// Falls back to the original points when fewer than 3 are provided.
 func convexHull(of points: [CGPoint]) -> [CGPoint] {
     guard points.count >= 3 else { return points }
+    // Pivot: lowest y, break ties by leftmost x
     let pivot = points.min { $0.y < $1.y || ($0.y == $1.y && $0.x < $1.x) }!
     let rest = points.filter { $0 != pivot }.sorted { a, b in
         let ta = atan2(a.y - pivot.y, a.x - pivot.x)
@@ -155,6 +155,7 @@ func convexHull(of points: [CGPoint]) -> [CGPoint] {
     for p in rest {
         while hull.count >= 2 {
             let a = hull[hull.count - 2], b = hull.last!
+            // z-component of (b−a) × (p−a); non-positive means right turn → pop
             let cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
             if cross <= 0 { hull.removeLast() } else { break }
         }
@@ -164,6 +165,8 @@ func convexHull(of points: [CGPoint]) -> [CGPoint] {
 }
 
 extension Constellation {
+    /// Axis-aligned bounding rect derived from the convex hull of star positions,
+    /// expanded by `padding` on every side.
     func boundingRect(padding: CGFloat = 80) -> CGRect {
         let pts = nodes.map(\.point)
         let hull = convexHull(of: pts)
@@ -196,19 +199,19 @@ enum GalaxyData {
             skyStory: "The Big Dipper is the easiest constellation to find — its 7 bright stars look like a soup ladle scooping the sky.",
             centroid: CGPoint(x: 250, y: 300),
             nodes: [
-                StarNode(id: "count", label: "Counting",     star: "Dubhe",  emoji: "👆", x: 360, y: 240, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
-                StarNode(id: "place", label: "Place Value",  star: "Merak",  emoji: "🏠", x: 350, y: 310, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "add",   label: "Adding",       star: "Phecda", emoji: "➕", x: 290, y: 320, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "sub",   label: "Subtracting",  star: "Megrez", emoji: "➖", x: 280, y: 270, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "mul",   label: "Times Tables", star: "Alioth", emoji: "✖️", x: 220, y: 260, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
-                StarNode(id: "div",   label: "Sharing (÷)",  star: "Mizar",  emoji: "➗", x: 165, y: 245, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "odd",   label: "Odd & Even",   star: "Alkaid", emoji: "👯", x: 110, y: 220, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
+                StarNode(id: "count", label: "Counting",     star: "Dubhe",  emoji: "👆", x: 360, y: 240, initiallyLocked: false, size: 7),
+                StarNode(id: "place", label: "Place Value",  star: "Merak",  emoji: "🏠", x: 350, y: 310, initiallyLocked: false, size: 6),
+                StarNode(id: "add",   label: "Adding",       star: "Phecda", emoji: "➕", x: 290, y: 320, initiallyLocked: false, size: 6),
+                StarNode(id: "sub",   label: "Subtracting",  star: "Megrez", emoji: "➖", x: 280, y: 270, initiallyLocked: false, size: 5),
+                StarNode(id: "mul",   label: "Times Tables", star: "Alioth", emoji: "✖️", x: 220, y: 260, initiallyLocked: false, size: 7),
+                StarNode(id: "div",   label: "Sharing (÷)",  star: "Mizar",  emoji: "➗", x: 165, y: 245, initiallyLocked: false, size: 6),
+                StarNode(id: "odd",   label: "Odd & Even",   star: "Alkaid", emoji: "👯", x: 110, y: 220, initiallyLocked: false, size: 6),
             ],
             edges: [
                 Edge(a:"count",b:"place"), Edge(a:"place",b:"add"), Edge(a:"add",b:"sub"), Edge(a:"sub",b:"count"),
                 Edge(a:"sub",b:"mul"), Edge(a:"mul",b:"div"), Edge(a:"div",b:"odd"),
             ]
-        ),
+        )
         // Orion → FRACTIONS
         Constellation(
             id: "fractions",
@@ -223,14 +226,14 @@ enum GalaxyData {
             nodes: [
                 // Betelgeuse is upper-LEFT (α Ori), Rigel lower-RIGHT (β Ori, brightest in Orion).
                 // Belt runs left-to-right: Alnitak → Alnilam → Mintaka.
-                StarNode(id: "half",     label: "Halves & Quarters",  star: "Betelgeuse", emoji: "🍰", x: 530, y: 250, initiallyLocked: false, status: .mastered, size: 9, mastery: nil),
-                StarNode(id: "frac",     label: "Reading Fractions",  star: "Bellatrix",  emoji: "📖", x: 660, y: 260, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "equiv",    label: "Equal Fractions",    star: "Alnitak",    emoji: "🟰", x: 540, y: 340, initiallyLocked: false, status: .learning, size: 5, mastery: 0.65),
-                StarNode(id: "compare",  label: "Bigger or Smaller?", star: "Alnilam",    emoji: "⚖️", x: 600, y: 340, initiallyLocked: false, status: .learning, size: 6, mastery: 0.5),
-                StarNode(id: "addfrac",  label: "Adding Slices",      star: "Mintaka",    emoji: "🍕", x: 660, y: 340, initiallyLocked: false, status: .gap,      size: 5, mastery: 0.28),
-                StarNode(id: "mixed",    label: "Mixed Numbers",      star: "Hatysa",     emoji: "🥧", x: 600, y: 400, initiallyLocked: false, status: .gap,      size: 4, mastery: 0.18),
-                StarNode(id: "simplify", label: "Simplifying",        star: "Saiph",      emoji: "✂️", x: 530, y: 460, initiallyLocked: false, status: .gap,      size: 5, mastery: 0.22),
-                StarNode(id: "word",     label: "Word Problems",      star: "Rigel",      emoji: "🧩", x: 670, y: 470, initiallyLocked: true,  status: .locked, size: 9, mastery: nil),
+                StarNode(id: "half",     label: "Halves & Quarters",  star: "Betelgeuse", emoji: "🍰", x: 530, y: 250, initiallyLocked: false, size: 9),
+                StarNode(id: "frac",     label: "Reading Fractions",  star: "Bellatrix",  emoji: "📖", x: 660, y: 260, initiallyLocked: false, size: 6),
+                StarNode(id: "equiv",    label: "Equal Fractions",    star: "Alnitak",    emoji: "🟰", x: 540, y: 340, initiallyLocked: false, size: 5),
+                StarNode(id: "compare",  label: "Bigger or Smaller?", star: "Alnilam",    emoji: "⚖️", x: 600, y: 340, initiallyLocked: false, size: 6),
+                StarNode(id: "addfrac",  label: "Adding Slices",      star: "Mintaka",    emoji: "🍕", x: 660, y: 340, initiallyLocked: false, size: 5),
+                StarNode(id: "mixed",    label: "Mixed Numbers",      star: "Hatysa",     emoji: "🥧", x: 600, y: 400, initiallyLocked: false, size: 4),
+                StarNode(id: "simplify", label: "Simplifying",        star: "Saiph",      emoji: "✂️", x: 530, y: 460, initiallyLocked: false, size: 5),
+                StarNode(id: "word",     label: "Word Problems",      star: "Rigel",      emoji: "🧩", x: 670, y: 470, initiallyLocked: true,  size: 9),
             ],
             edges: [
                 Edge(a:"half",b:"equiv"), Edge(a:"frac",b:"addfrac"),
@@ -251,14 +254,14 @@ enum GalaxyData {
             skyStory: "Cassiopeia looks like a giant W (or M, when it flips upside down). Five bright stars zig-zag across the northern sky like a queen's crown.",
             centroid: CGPoint(x: 235, y: 600),
             nodes: [
-                StarNode(id: "tri",   label: "Triangles", star: "Caph",      emoji: "🔺", x: 130, y: 540, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "sq",    label: "Squares",   star: "Schedar",   emoji: "🟦", x: 180, y: 620, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
-                StarNode(id: "circ",  label: "Circles",   star: "Gamma Cas", emoji: "⭕", x: 235, y: 540, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
-                StarNode(id: "poly",  label: "Polygons",  star: "Ruchbah",   emoji: "🔶", x: 290, y: 620, initiallyLocked: false, status: .learning, size: 6, mastery: 0.7),
-                StarNode(id: "sym",   label: "Symmetry",  star: "Segin",     emoji: "🦋", x: 345, y: 535, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "angle", label: "Angles",    star: "Achird",    emoji: "📐", x: 220, y: 700, initiallyLocked: false, status: .learning, size: 4, mastery: 0.55),
-                StarNode(id: "area",  label: "Area",      star: "Marfak",    emoji: "🟩", x: 130, y: 700,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.3),
-                StarNode(id: "vol",   label: "Volume",    star: "Fulu",      emoji: "🧊", x: 320, y: 720,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.2),
+                StarNode(id: "tri",   label: "Triangles", star: "Caph",      emoji: "🔺", x: 130, y: 540, initiallyLocked: false, size: 6),
+                StarNode(id: "sq",    label: "Squares",   star: "Schedar",   emoji: "🟦", x: 180, y: 620, initiallyLocked: false, size: 7),
+                StarNode(id: "circ",  label: "Circles",   star: "Gamma Cas", emoji: "⭕", x: 235, y: 540, initiallyLocked: false, size: 7),
+                StarNode(id: "poly",  label: "Polygons",  star: "Ruchbah",   emoji: "🔶", x: 290, y: 620, initiallyLocked: false, size: 6),
+                StarNode(id: "sym",   label: "Symmetry",  star: "Segin",     emoji: "🦋", x: 345, y: 535, initiallyLocked: false, size: 5),
+                StarNode(id: "angle", label: "Angles",    star: "Achird",    emoji: "📐", x: 220, y: 700, initiallyLocked: false, size: 4),
+                StarNode(id: "area",  label: "Area",      star: "Marfak",    emoji: "🟩", x: 130, y: 700,      initiallyLocked: false, size: 4),
+                StarNode(id: "vol",   label: "Volume",    star: "Fulu",      emoji: "🧊", x: 320, y: 720,      initiallyLocked: false, size: 4),
             ],
             edges: [
                 Edge(a:"tri",b:"sq"), Edge(a:"sq",b:"circ"), Edge(a:"circ",b:"poly"), Edge(a:"poly",b:"sym"),
@@ -277,15 +280,15 @@ enum GalaxyData {
             skyStory: "Leo's head is a backward question-mark called the Sickle. Its heart-star Regulus is one of the brightest in the spring sky.",
             centroid: CGPoint(x: 720, y: 600),
             nodes: [
-                StarNode(id: "clock",    label: "Reading Clocks",  star: "Regulus",     emoji: "🕒", x: 700, y: 620, initiallyLocked: false, status: .mastered, size: 8, mastery: nil),
-                StarNode(id: "min",      label: "Hours & Minutes", star: "Eta Leonis",  emoji: "⏱️", x: 700, y: 560, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "cal",      label: "Calendar",        star: "Algieba",     emoji: "📅", x: 720, y: 510, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "elapsed",  label: "How Long?",       star: "Adhafera",    emoji: "⌛", x: 760, y: 470, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "rasalas",  label: "AM vs PM",        star: "Rasalas",     emoji: "🌗", x: 800, y: 480, initiallyLocked: false, status: .mastered, size: 4, mastery: nil),
-                StarNode(id: "algenubi", label: "Time Words",      star: "Algenubi",    emoji: "💬", x: 815, y: 530, initiallyLocked: false, status: .mastered, size: 4, mastery: nil),
-                StarNode(id: "coins",    label: "Coins",           star: "Chertan",     emoji: "🪙", x: 800, y: 640, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "change",   label: "Making Change",   star: "Zosma",       emoji: "💱", x: 820, y: 600, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "dollar",   label: "Dollars & Cents", star: "Denebola",    emoji: "💵", x: 880, y: 670, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
+                StarNode(id: "clock",    label: "Reading Clocks",  star: "Regulus",     emoji: "🕒", x: 700, y: 620, initiallyLocked: false, size: 8),
+                StarNode(id: "min",      label: "Hours & Minutes", star: "Eta Leonis",  emoji: "⏱️", x: 700, y: 560, initiallyLocked: false, size: 5),
+                StarNode(id: "cal",      label: "Calendar",        star: "Algieba",     emoji: "📅", x: 720, y: 510, initiallyLocked: false, size: 6),
+                StarNode(id: "elapsed",  label: "How Long?",       star: "Adhafera",    emoji: "⌛", x: 760, y: 470, initiallyLocked: false, size: 5),
+                StarNode(id: "rasalas",  label: "AM vs PM",        star: "Rasalas",     emoji: "🌗", x: 800, y: 480, initiallyLocked: false, size: 4),
+                StarNode(id: "algenubi", label: "Time Words",      star: "Algenubi",    emoji: "💬", x: 815, y: 530, initiallyLocked: false, size: 4),
+                StarNode(id: "coins",    label: "Coins",           star: "Chertan",     emoji: "🪙", x: 800, y: 640, initiallyLocked: false, size: 5),
+                StarNode(id: "change",   label: "Making Change",   star: "Zosma",       emoji: "💱", x: 820, y: 600, initiallyLocked: false, size: 5),
+                StarNode(id: "dollar",   label: "Dollars & Cents", star: "Denebola",    emoji: "💵", x: 880, y: 670, initiallyLocked: false, size: 7),
             ],
             edges: [
                 Edge(a:"clock",b:"min"), Edge(a:"min",b:"cal"), Edge(a:"cal",b:"elapsed"),
@@ -305,13 +308,13 @@ enum GalaxyData {
             skyStory: "Lyra is a tiny constellation but it holds Vega — the 5th brightest star in our whole night sky. Below Vega, four stars form a perfect parallelogram, like a little harp.",
             centroid: CGPoint(x: 220, y: 940),
             nodes: [
-                StarNode(id: "phon",    label: "Phonics",         star: "Vega",          emoji: "🔤", x: 220, y: 850, initiallyLocked: false, status: .mastered, size: 9, mastery: nil),
-                StarNode(id: "sight",   label: "Sight Words",     star: "Epsilon Lyrae", emoji: "👀", x: 270, y: 880, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "flu",     label: "Smooth Reading",  star: "Zeta Lyrae",    emoji: "🌊", x: 170, y: 900, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "main",    label: "Main Idea",       star: "Sheliak",       emoji: "💡", x: 175, y: 970, initiallyLocked: false, status: .learning, size: 6, mastery: 0.6),
-                StarNode(id: "detail",  label: "Key Details",     star: "Sulafat",       emoji: "🔍", x: 290, y: 990, initiallyLocked: false, status: .learning, size: 6, mastery: 0.55),
-                StarNode(id: "infer",   label: "Reading Clues",   star: "Delta Lyrae",   emoji: "🕵️", x: 270, y: 1050,      initiallyLocked: false, status: .gap,      size: 5, mastery: 0.3),
-                StarNode(id: "theme",   label: "Theme",           star: "Aladfar",       emoji: "🎭", x: 155, y: 1030,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.2),
+                StarNode(id: "phon",    label: "Phonics",         star: "Vega",          emoji: "🔤", x: 220, y: 850, initiallyLocked: false, size: 9),
+                StarNode(id: "sight",   label: "Sight Words",     star: "Epsilon Lyrae", emoji: "👀", x: 270, y: 880, initiallyLocked: false, size: 5),
+                StarNode(id: "flu",     label: "Smooth Reading",  star: "Zeta Lyrae",    emoji: "🌊", x: 170, y: 900, initiallyLocked: false, size: 5),
+                StarNode(id: "main",    label: "Main Idea",       star: "Sheliak",       emoji: "💡", x: 175, y: 970, initiallyLocked: false, size: 6),
+                StarNode(id: "detail",  label: "Key Details",     star: "Sulafat",       emoji: "🔍", x: 290, y: 990, initiallyLocked: false, size: 6),
+                StarNode(id: "infer",   label: "Reading Clues",   star: "Delta Lyrae",   emoji: "🕵️", x: 270, y: 1050,      initiallyLocked: false, size: 5),
+                StarNode(id: "theme",   label: "Theme",           star: "Aladfar",       emoji: "🎭", x: 155, y: 1030,      initiallyLocked: false, size: 4),
             ],
             edges: [
                 Edge(a:"phon",b:"sight"), Edge(a:"phon",b:"flu"),
@@ -331,14 +334,14 @@ enum GalaxyData {
             skyStory: "Cygnus the Swan flies along the Milky Way. Its 5 brightest stars form a neat cross — sometimes called the Northern Cross.",
             centroid: CGPoint(x: 540, y: 920),
             nodes: [
-                StarNode(id: "caps",  label: "Caps & Periods",  star: "Deneb",     emoji: "🔠", x: 540, y: 820, initiallyLocked: false, status: .mastered, size: 8, mastery: nil),
-                StarNode(id: "noun",  label: "Nouns & Verbs",   star: "Sadr",      emoji: "🐶", x: 540, y: 920, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
-                StarNode(id: "sent",  label: "Full Sentences",  star: "Albireo",   emoji: "📝", x: 540, y: 1030, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "adj",   label: "Adjectives",      star: "Gienah",    emoji: "🌈", x: 460, y: 920, initiallyLocked: false, status: .learning, size: 6, mastery: 0.6),
-                StarNode(id: "para",  label: "Paragraphs",      star: "Delta Cyg", emoji: "📄", x: 620, y: 920, initiallyLocked: false, status: .learning, size: 6, mastery: 0.55),
-                StarNode(id: "story", label: "Story Building",  star: "Aljanah",   emoji: "🏰", x: 410, y: 870,      initiallyLocked: false, status: .gap,      size: 5, mastery: 0.25),
-                StarNode(id: "opin",  label: "My Opinion",      star: "Iota Cyg",  emoji: "💭", x: 660, y: 870,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.2),
-                StarNode(id: "edit",  label: "Editing",         star: "Kappa Cyg", emoji: "🧹", x: 480, y: 1000,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.15),
+                StarNode(id: "caps",  label: "Caps & Periods",  star: "Deneb",     emoji: "🔠", x: 540, y: 820, initiallyLocked: false, size: 8),
+                StarNode(id: "noun",  label: "Nouns & Verbs",   star: "Sadr",      emoji: "🐶", x: 540, y: 920, initiallyLocked: false, size: 7),
+                StarNode(id: "sent",  label: "Full Sentences",  star: "Albireo",   emoji: "📝", x: 540, y: 1030, initiallyLocked: false, size: 6),
+                StarNode(id: "adj",   label: "Adjectives",      star: "Gienah",    emoji: "🌈", x: 460, y: 920, initiallyLocked: false, size: 6),
+                StarNode(id: "para",  label: "Paragraphs",      star: "Delta Cyg", emoji: "📄", x: 620, y: 920, initiallyLocked: false, size: 6),
+                StarNode(id: "story", label: "Story Building",  star: "Aljanah",   emoji: "🏰", x: 410, y: 870,      initiallyLocked: false, size: 5),
+                StarNode(id: "opin",  label: "My Opinion",      star: "Iota Cyg",  emoji: "💭", x: 660, y: 870,      initiallyLocked: false, size: 4),
+                StarNode(id: "edit",  label: "Editing",         star: "Kappa Cyg", emoji: "🧹", x: 480, y: 1000,      initiallyLocked: false, size: 4),
             ],
             edges: [
                 Edge(a:"caps",b:"noun"), Edge(a:"noun",b:"sent"),
@@ -359,18 +362,18 @@ enum GalaxyData {
             skyStory: "Scorpius is one of the few constellations that REALLY looks like the thing it's named for — a curling scorpion with a fiery red heart-star, Antares.",
             centroid: CGPoint(x: 820, y: 280),
             nodes: [
-                StarNode(id: "living",  label: "Living vs Not",  star: "Graffias",    emoji: "🌱", x: 720, y: 150, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "plant",   label: "Plant Parts",    star: "Dschubba",    emoji: "🌻", x: 780, y: 175, initiallyLocked: false, status: .mastered, size: 6, mastery: nil),
-                StarNode(id: "animal",  label: "Animal Groups",  star: "Pi Sco",      emoji: "🦁", x: 840, y: 165, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "habitat", label: "Habitats",       star: "Antares",     emoji: "🌳", x: 800, y: 260, initiallyLocked: false, status: .learning, size: 9, mastery: 0.7),
+                StarNode(id: "living",  label: "Living vs Not",  star: "Graffias",    emoji: "🌱", x: 720, y: 150, initiallyLocked: false, size: 6),
+                StarNode(id: "plant",   label: "Plant Parts",    star: "Dschubba",    emoji: "🌻", x: 780, y: 175, initiallyLocked: false, size: 6),
+                StarNode(id: "animal",  label: "Animal Groups",  star: "Pi Sco",      emoji: "🦁", x: 840, y: 165, initiallyLocked: false, size: 5),
+                StarNode(id: "habitat", label: "Habitats",       star: "Antares",     emoji: "🌳", x: 800, y: 260, initiallyLocked: false, size: 9),
                 // Sigma Sco sits directly below Antares in the body chain, not off to the side.
-                StarNode(id: "food",    label: "Food Chains",    star: "Sigma Sco",   emoji: "🦊", x: 800, y: 310, initiallyLocked: false, status: .learning, size: 5, mastery: 0.55),
-                StarNode(id: "cycle",   label: "Life Cycles",    star: "Tau Sco",     emoji: "🦋", x: 830, y: 330,      initiallyLocked: false, status: .gap,      size: 5, mastery: 0.3),
-                StarNode(id: "eco",     label: "Ecosystems",     star: "Epsilon Sco", emoji: "🐝", x: 870, y: 390,      initiallyLocked: false, status: .gap,      size: 5, mastery: 0.2),
-                StarNode(id: "photo",   label: "Photosynthesis", star: "Mu Sco",      emoji: "☀️", x: 900, y: 450,   initiallyLocked: true, status: .locked,   size: 4, mastery: nil),
-                StarNode(id: "zeta",    label: "Cells",          star: "Zeta Sco",    emoji: "🔬", x: 880, y: 510,   initiallyLocked: true, status: .locked,   size: 5, mastery: nil),
-                StarNode(id: "shaula",  label: "Adaptations",    star: "Shaula",      emoji: "🐾", x: 820, y: 540,   initiallyLocked: true, status: .locked,   size: 7, mastery: nil),
-                StarNode(id: "lesath",  label: "Stinger Facts",  star: "Lesath",      emoji: "⚡", x: 800, y: 510,   initiallyLocked: true, status: .locked,   size: 4, mastery: nil),
+                StarNode(id: "food",    label: "Food Chains",    star: "Sigma Sco",   emoji: "🦊", x: 800, y: 310, initiallyLocked: false, size: 5),
+                StarNode(id: "cycle",   label: "Life Cycles",    star: "Tau Sco",     emoji: "🦋", x: 830, y: 330,      initiallyLocked: false, size: 5),
+                StarNode(id: "eco",     label: "Ecosystems",     star: "Epsilon Sco", emoji: "🐝", x: 870, y: 390,      initiallyLocked: false, size: 5),
+                StarNode(id: "photo",   label: "Photosynthesis", star: "Mu Sco",      emoji: "☀️", x: 900, y: 450,   initiallyLocked: true, size: 4),
+                StarNode(id: "zeta",    label: "Cells",          star: "Zeta Sco",    emoji: "🔬", x: 880, y: 510,   initiallyLocked: true, size: 5),
+                StarNode(id: "shaula",  label: "Adaptations",    star: "Shaula",      emoji: "🐾", x: 820, y: 540,   initiallyLocked: true, size: 7),
+                StarNode(id: "lesath",  label: "Stinger Facts",  star: "Lesath",      emoji: "⚡", x: 800, y: 510,   initiallyLocked: true, size: 4),
             ],
             edges: [
                 Edge(a:"living",b:"plant"), Edge(a:"plant",b:"animal"),
@@ -393,14 +396,14 @@ enum GalaxyData {
             skyStory: "The Little Dipper has Polaris — the North Star — at the tip of its handle. It barely moves all night, so sailors have used it to find their way for thousands of years.",
             centroid: CGPoint(x: 800, y: 1010),
             nodes: [
-                StarNode(id: "sun",     label: "Sun, Earth, Moon", star: "Polaris",     emoji: "🌞", x: 720, y: 920, initiallyLocked: false, status: .mastered, size: 8, mastery: nil),
-                StarNode(id: "season",  label: "Seasons",          star: "Yildun",      emoji: "🍁", x: 770, y: 950, initiallyLocked: false, status: .learning, size: 5, mastery: 0.6),
-                StarNode(id: "weather", label: "Weather",          star: "Epsilon UMi", emoji: "⛅", x: 820, y: 985, initiallyLocked: false, status: .learning, size: 5, mastery: 0.65),
-                StarNode(id: "water",   label: "Water Cycle",      star: "Zeta UMi",    emoji: "💧", x: 840, y: 1030,      initiallyLocked: false, status: .gap,      size: 5, mastery: 0.3),
-                StarNode(id: "rocks",   label: "Rocks & Minerals", star: "Eta UMi",     emoji: "🪨", x: 900, y: 1040,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.2),
-                StarNode(id: "planet",  label: "Planets",          star: "Pherkad",     emoji: "🪐", x: 920, y: 1100,      initiallyLocked: false, status: .gap,      size: 6, mastery: 0.25),
-                StarNode(id: "gravity", label: "Gravity",          star: "Kochab",      emoji: "🍎", x: 850, y: 1140,   initiallyLocked: true, status: .locked,   size: 7, mastery: nil),
-                StarNode(id: "galaxy",  label: "Stars & Galaxies", star: "Zeta UMi B",  emoji: "🌌", x: 780, y: 1080,   initiallyLocked: true, status: .locked,   size: 4, mastery: nil),
+                StarNode(id: "sun",     label: "Sun, Earth, Moon", star: "Polaris",     emoji: "🌞", x: 720, y: 920, initiallyLocked: false, size: 8),
+                StarNode(id: "season",  label: "Seasons",          star: "Yildun",      emoji: "🍁", x: 770, y: 950, initiallyLocked: false, size: 5),
+                StarNode(id: "weather", label: "Weather",          star: "Epsilon UMi", emoji: "⛅", x: 820, y: 985, initiallyLocked: false, size: 5),
+                StarNode(id: "water",   label: "Water Cycle",      star: "Zeta UMi",    emoji: "💧", x: 840, y: 1030,      initiallyLocked: false, size: 5),
+                StarNode(id: "rocks",   label: "Rocks & Minerals", star: "Eta UMi",     emoji: "🪨", x: 900, y: 1040,      initiallyLocked: false, size: 4),
+                StarNode(id: "planet",  label: "Planets",          star: "Pherkad",     emoji: "🪐", x: 920, y: 1100,      initiallyLocked: false, size: 6),
+                StarNode(id: "gravity", label: "Gravity",          star: "Kochab",      emoji: "🍎", x: 850, y: 1140,   initiallyLocked: true, size: 7),
+                StarNode(id: "galaxy",  label: "Stars & Galaxies", star: "Zeta UMi B",  emoji: "🌌", x: 780, y: 1080,   initiallyLocked: true, size: 4),
             ],
             edges: [
                 Edge(a:"sun",b:"season"), Edge(a:"season",b:"weather"), Edge(a:"weather",b:"water"),
@@ -420,17 +423,17 @@ enum GalaxyData {
             skyStory: "Draco the Dragon coils its long tail right between the two Dippers. 5,000 years ago its star Thuban was the North Star — the one Egyptian pyramid builders pointed to.",
             centroid: CGPoint(x: 470, y: 1240),
             nodes: [
-                StarNode(id: "ancient",  label: "Ancient Peoples",  star: "Eltanin",      emoji: "🏛️", x: 350, y: 1100, initiallyLocked: false, status: .mastered, size: 7, mastery: nil),
-                StarNode(id: "rastaban", label: "Sky Stories",      star: "Rastaban",     emoji: "✨",  x: 320, y: 1140, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "maps",     label: "Reading Maps",     star: "Grumium",      emoji: "🧭", x: 380, y: 1140, initiallyLocked: false, status: .mastered, size: 5, mastery: nil),
-                StarNode(id: "nu",       label: "Time Lines",       star: "Nu Draconis",  emoji: "📜", x: 350, y: 1160, initiallyLocked: false, status: .mastered, size: 4, mastery: nil),
-                StarNode(id: "native",   label: "Native Peoples",   star: "Altais",       emoji: "🪶", x: 420, y: 1190, initiallyLocked: false, status: .learning, size: 6, mastery: 0.6),
-                StarNode(id: "explor",   label: "Explorers",        star: "Aldhibah",     emoji: "⛵", x: 480, y: 1230, initiallyLocked: false, status: .learning, size: 5, mastery: 0.55),
-                StarNode(id: "colony",   label: "Long-Ago Towns",   star: "Edasich",      emoji: "🏘️", x: 540, y: 1260,      initiallyLocked: false, status: .gap,      size: 5, mastery: 0.3),
-                StarNode(id: "rev",      label: "Big Changes",      star: "Thuban",       emoji: "🔔", x: 580, y: 1310,      initiallyLocked: false, status: .gap,      size: 6, mastery: 0.2),
-                StarNode(id: "gov",      label: "How Gov Works",    star: "Kappa Dra",    emoji: "🏛️", x: 540, y: 1360,      initiallyLocked: false, status: .gap,      size: 4, mastery: 0.25),
-                StarNode(id: "civil",    label: "Fairness for All", star: "Giausar",      emoji: "🤝", x: 460, y: 1380,   initiallyLocked: true, status: .locked,   size: 4, mastery: nil),
-                StarNode(id: "tail",     label: "Stories Today",    star: "Tail of Draco",emoji: "📰", x: 400, y: 1340,   initiallyLocked: true, status: .locked,   size: 4, mastery: nil),
+                StarNode(id: "ancient",  label: "Ancient Peoples",  star: "Eltanin",      emoji: "🏛️", x: 350, y: 1100, initiallyLocked: false, size: 7),
+                StarNode(id: "rastaban", label: "Sky Stories",      star: "Rastaban",     emoji: "✨",  x: 320, y: 1140, initiallyLocked: false, size: 5),
+                StarNode(id: "maps",     label: "Reading Maps",     star: "Grumium",      emoji: "🧭", x: 380, y: 1140, initiallyLocked: false, size: 5),
+                StarNode(id: "nu",       label: "Time Lines",       star: "Nu Draconis",  emoji: "📜", x: 350, y: 1160, initiallyLocked: false, size: 4),
+                StarNode(id: "native",   label: "Native Peoples",   star: "Altais",       emoji: "🪶", x: 420, y: 1190, initiallyLocked: false, size: 6),
+                StarNode(id: "explor",   label: "Explorers",        star: "Aldhibah",     emoji: "⛵", x: 480, y: 1230, initiallyLocked: false, size: 5),
+                StarNode(id: "colony",   label: "Long-Ago Towns",   star: "Edasich",      emoji: "🏘️", x: 540, y: 1260,      initiallyLocked: false, size: 5),
+                StarNode(id: "rev",      label: "Big Changes",      star: "Thuban",       emoji: "🔔", x: 580, y: 1310,      initiallyLocked: false, size: 6),
+                StarNode(id: "gov",      label: "How Gov Works",    star: "Kappa Dra",    emoji: "🏛️", x: 540, y: 1360,      initiallyLocked: false, size: 4),
+                StarNode(id: "civil",    label: "Fairness for All", star: "Giausar",      emoji: "🤝", x: 460, y: 1380,   initiallyLocked: true, size: 4),
+                StarNode(id: "tail",     label: "Stories Today",    star: "Tail of Draco",emoji: "📰", x: 400, y: 1340,   initiallyLocked: true, size: 4),
             ],
             edges: [
                 Edge(a:"ancient",b:"rastaban"), Edge(a:"ancient",b:"maps"), Edge(a:"rastaban",b:"nu"), Edge(a:"maps",b:"nu"),
