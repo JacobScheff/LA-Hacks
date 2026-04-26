@@ -95,9 +95,14 @@ struct StarNode: Identifiable, Hashable {
     let y: CGFloat
     /// True = locked until a connected neighbor reaches Twinkling mastery.
     let initiallyLocked: Bool
+    
+    var status: MasteryStage = .locked
+    
     let size: CGFloat
 
     var point: CGPoint { CGPoint(x: x, y: y) }
+    
+    var mastery: Double = 0.0
 }
 
 struct Edge: Hashable {
@@ -211,7 +216,7 @@ enum GalaxyData {
                 Edge(a:"count",b:"place"), Edge(a:"place",b:"add"), Edge(a:"add",b:"sub"), Edge(a:"sub",b:"count"),
                 Edge(a:"sub",b:"mul"), Edge(a:"mul",b:"div"), Edge(a:"div",b:"odd"),
             ]
-        )
+        ),
         // Orion → FRACTIONS
         Constellation(
             id: "fractions",

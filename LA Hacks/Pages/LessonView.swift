@@ -1257,7 +1257,6 @@ struct LessonView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .dismissesKeyboard()
         .onAppear { startIntro() }
         .overlay {
             if let sticker = currentStickerToast {
@@ -1465,7 +1464,7 @@ struct LessonView: View {
                 DispatchQueue.main.async {
                     withAnimation(.easeOut(duration: 0.15)) {
                         isTyping = false
-                        msgs.append(ChatMsg(source: .nova, text: responseText))
+                        msgs.append(ChatMsg(source: .nova, text: result.text))
                         self.streamText = ""
                     }
                     then?()
