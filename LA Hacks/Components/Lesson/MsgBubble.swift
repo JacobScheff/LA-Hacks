@@ -18,6 +18,10 @@ struct ChatMsg: Identifiable {
     var statsXP: Int = 0
     var statsHearts: Int = 3
     var statsHints: Int = 0
+    // Color-coded student-bubble feedback from origin/main's content-filters PR.
+    // nil for neutral student input, .correct/.incorrect for graded answers.
+    var answerResult: AnswerResult? = nil
+    enum AnswerResult { case correct, incorrect }
 }
 
 // MARK: - Chat bubble
@@ -62,17 +66,31 @@ struct MsgBubble: View {
             Spacer(minLength: 44)
             Text(msg.text)
                 .font(.system(size: 14.5, weight: .semibold, design: .rounded))
-                .foregroundColor(Color(hex: 0x1A0B40))
+                .foregroundColor(msg.answerResult == nil ? Color(hex: 0x1A0B40) : .white)
                 .lineSpacing(2)
                 .padding(.horizontal, 14).padding(.vertical, 10)
                 .background(
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing
-                        ))
+                        .fill(
+                            msg.answerResult == .correct
+                                ? AnyShapeStyle(LinearGradient(
+                                    colors: [Color(hex: 0x34C759), Color(hex: 0x30B354)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing))
+                                : msg.answerResult == .incorrect
+                                ? AnyShapeStyle(LinearGradient(
+                                    colors: [Color(hex: 0xFF3B30), Color(hex: 0xD93025)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing))
+                                : AnyShapeStyle(LinearGradient(
+                                    colors: [Color(hex: 0xFF8A4C), Color(hex: 0xFFCC44)],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing))
+                        )
                 )
-                .shadow(color: Color(hex: 0xFF8A4C, opacity: 0.3), radius: 8, x: 0, y: 2)
+                .shadow(color: msg.answerResult == .correct
+                            ? Color(hex: 0x34C759, opacity: 0.4)
+                            : msg.answerResult == .incorrect
+                            ? Color(hex: 0xFF3B30, opacity: 0.4)
+                            : Color(hex: 0xFF8A4C, opacity: 0.3),
+                        radius: 8, x: 0, y: 2)
         }
     }
 

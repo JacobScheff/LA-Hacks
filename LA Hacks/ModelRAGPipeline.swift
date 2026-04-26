@@ -214,35 +214,69 @@ enum RAGPipeline {
         onStream: @escaping (String) -> Void,
         onComplete: @escaping (PipelineResult) -> Void
     ) {
-        // 1. Retrieve relevant chunks
-        let chunks = RAGRetriever.retrieve(query: userQuery, context: context)
+        // 1. INPUT GUARD — before any retrieval or model work
+        let inputResult = InputContentFilter.evaluate(query: userQuery, context: context)
+        switch inputResult.verdict {
+        case .blocked:
+            onComplete(PipelineResult(
+                text: inputResult.reason,
+                status: .filteredByGuard,
+                ragChunksUsed: [],
+                error: nil
+            ))
+            return
+        case .redirect, .pass:
+            break // continue with sanitizedQuery below
+        }
+        let effectiveQuery = inputResult.sanitizedQuery ?? userQuery
 
-        // 2. Build enhanced system prompt
+        // 2. Retrieve relevant chunks (using sanitized query if redirected)
+        let chunks = RAGRetriever.retrieve(query: effectiveQuery, context: context)
+
+        // 3. Build enhanced system prompt
         let systemPrompt = buildSystemPrompt(chunks: chunks, context: context)
 
-        // 3. Combine into a single prompt string for the model
+        // 4. Combine into a single prompt string for the model
         let fullPrompt = """
         <system>
         \(systemPrompt)
         </system>
 
         <user>
-        \(userQuery)
+        \(effectiveQuery)
         </user>
 
         <assistant>
         """
 
-        // 4. Call runModel
+        // 5. Stream model response into a buffer for the output guard
+        var streamBuffer = ""
+
         runModel(
             prompt: fullPrompt,
             onDownload: onDownload,
-            onStream: onStream,
+            onStream: { currentText in
+                streamBuffer = currentText
+                onStream(currentText)
+            },
             onComplete: { error in
-                let status: PipelineResult.Status = error == nil ? .success : .modelError
+                // 6. OUTPUT GUARD — runs on the fully assembled response
+                let outputResult = OutputContentFilter.evaluate(
+                    response: streamBuffer,
+                    context: context
+                )
+
+                let finalStatus: PipelineResult.Status
+                switch outputResult.verdict {
+                case .pass:
+                    finalStatus = error == nil ? .success : .modelError
+                case .rewritten, .replaced:
+                    finalStatus = .filteredByGuard
+                }
+
                 onComplete(PipelineResult(
-                    text: userQuery, // caller should track streamed text separately
-                    status: status,
+                    text: outputResult.deliverableText,
+                    status: finalStatus,
                     ragChunksUsed: chunks,
                     error: error
                 ))
