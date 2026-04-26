@@ -1,0 +1,9 @@
+# Xcode per-user data (machine-local, high-churn, conflict-prone)
+**/xcuserdata/
+**/*.xcuserstate
+**/xcdebugger/Breakpoints_v2.xcbkptlist
+**/*.xcscheme
+
+# macOS metadata
+.DS_Store
+

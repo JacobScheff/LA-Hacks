@@ -296,6 +296,14 @@ final class UserSettings {
             defaults.set(true, forKey: Self.seededKey)
         }
         Bundle.setLanguage(self.language)   // activate persisted language after all properties are set
+        // #region agent log
+        let _lang = self.language
+        let _raw = defaults.string(forKey: Self.languageKey) ?? "nil"
+        let _line = "{\"sessionId\":\"2da7cf\",\"hypothesisId\":\"D\",\"location\":\"UserSettings.swift:init\",\"message\":\"Language loaded from UserDefaults\",\"data\":{\"language\":\"\(_lang)\",\"rawDefaultsValue\":\"\(_raw)\"},\"timestamp\":\(Int(Date().timeIntervalSince1970*1000))}\n"
+        let _p = "/Users/genami133/Projects/LA-Hacks/.cursor/debug-2da7cf.log"
+        if let fh = FileHandle(forWritingAtPath: _p) { fh.seekToEndOfFile(); fh.write(_line.data(using: .utf8)!); fh.closeFile() }
+        else { try? _line.data(using: .utf8)?.write(to: URL(fileURLWithPath: _p)) }
+        // #endregion
     }
 
     // MARK: - Record study session
@@ -393,9 +401,8 @@ final class UserSettings {
         if (starMastery["main"] ?? 0) >= t && (starMastery["habitat"] ?? 0) >= t { unlock("word_wiz") }
 
         // ── XP milestones ────────────────────────────────────────────────
-        if totalXP >= 500  { unlock("calc_wizard") }
-        if totalXP >= 1000 { unlock("number_cruncher") }
-        if totalXP >= 2000 { unlock("xp_master") }
+        if totalXP >= 2000 { unlock("number_cruncher") }
+        if totalXP >= 5000 { unlock("xp_master") }
 
         // ── Perfect lessons ──────────────────────────────────────────────
         if perfectLessonsCount >= 1 { unlock("perfect_score") }
@@ -408,10 +415,9 @@ final class UserSettings {
 
         // ── Quick completions (perfect + no hints) ───────────────────────
         if quickLessonsCount >= 1 { unlock("quick_fox") }
-        if quickLessonsCount >= 1 { unlock("speed_demon") }
+        if quickLessonsCount >= 5 { unlock("speed_demon") }
 
         // ── Lessons completed ────────────────────────────────────────────
-        if lessonsCompleted >= 1  { unlock("first_step") }
         if lessonsCompleted >= 5  { unlock("story_star") }
         if lessonsCompleted >= 10 { unlock("bookworm") }
         if lessonsCompleted >= 25 { unlock("scholar") }
@@ -436,10 +442,10 @@ final class UserSettings {
         if hour == 0  { unlock("midnight_nova") }
 
         // ── Cross-category rainbow ───────────────────────────────────────
-        let mathIds: Set<String>    = ["pizza_pro","sharp_shoot","times_whiz","cool_cube","geo_gem","frac_king","speed_demon","numbers_boss","calc_wizard","perfect_score","number_cruncher"]
+        let mathIds: Set<String>    = ["pizza_pro","sharp_shoot","times_whiz","cool_cube","geo_gem","frac_king","speed_demon","numbers_boss","perfect_score","number_cruncher"]
         let readingIds: Set<String> = ["word_wiz","story_star","speed_read","detective","bookworm","no_hints","scholar"]
         let streakIds: Set<String>  = ["streak_7","streak_14","quick_fox","hot_streak","streak_30","iron_will","symm_star","early_bird","night_owl"]
-        let explorerIds: Set<String> = ["rocket_kid","galaxy_voyager","space_cadet","star_20","star_captain","cosmo_scout","deep_space","universe_child","galaxy_brain","first_step"]
+        let explorerIds: Set<String> = ["rocket_kid","galaxy_voyager","space_cadet","star_20","star_captain","cosmo_scout","deep_space","universe_child","galaxy_brain"]
         if !mathIds.isDisjoint(with: unlockedStickers) &&
            !readingIds.isDisjoint(with: unlockedStickers) &&
            !streakIds.isDisjoint(with: unlockedStickers) &&

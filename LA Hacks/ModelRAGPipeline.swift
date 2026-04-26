@@ -163,7 +163,21 @@ enum RAGPipeline {
 
     // MARK: - System Prompt
 
+    // #region agent log
+    private static func _dbLog(_ h: String, _ loc: String, _ msg: String, _ kv: [String: String] = [:]) {
+        let p = "/Users/genami133/Projects/LA-Hacks/.cursor/debug-2da7cf.log"
+        let d = kv.map { "\"\($0.key)\":\"\($0.value.replacingOccurrences(of: "\"", with: "'"))\"" }.joined(separator: ",")
+        let line = "{\"sessionId\":\"2da7cf\",\"hypothesisId\":\"\(h)\",\"location\":\"\(loc)\",\"message\":\"\(msg)\",\"data\":{\(d)},\"timestamp\":\(Int(Date().timeIntervalSince1970*1000))}\n"
+        if let fh = FileHandle(forWritingAtPath: p) { fh.seekToEndOfFile(); fh.write(line.data(using: .utf8)!); fh.closeFile() }
+        else { try? line.data(using: .utf8)?.write(to: URL(fileURLWithPath: p)) }
+    }
+    // #endregion
+
     private static func buildSystemPrompt(chunks: [RAGChunk], context: PipelineContext) -> String {
+        // #region agent log
+        let lang = UserSettings.shared.language
+        _dbLog("A", "ModelRAGPipeline.swift:buildSystemPrompt", "Building AI prompt - language check", ["userLanguage": lang, "promptIncludesLanguage": "false"])
+        // #endregion
         var prompt = """
         Role: You are "Nova," a friendly, high-energy, and patient AI tutor for elementary school students (ages 6–11). Your mission is to help students understand their schoolwork using the documents they upload.
         Tone & Personality:
@@ -240,6 +254,13 @@ enum RAGPipeline {
         let memContext = MemoryStore.shared.contextForPrompt()
         if !memContext.isEmpty {
             prompt += "\n## 🧠 Student Memory\n\(memContext)\n"
+        }
+        
+        // ── Weak concept reinforcement ────────────────────────────────
+        let bktSummary = BKTMastery.shared.summaryForPrompt()
+        if !bktSummary.isEmpty {
+            prompt += "\n\n## 🔁 Concepts to Reinforce\n\(bktSummary)\n"
+            prompt += "Weave in gentle review or extra encouragement for these topics naturally during the lesson.\n"
         }
 
         prompt += "\nNow respond to \(context.studentName)'s message below. Remember: 3–4 sentences max! 🚀\n"

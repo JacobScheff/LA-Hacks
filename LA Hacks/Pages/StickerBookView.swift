@@ -85,7 +85,7 @@ struct StarStickerItem: Identifiable {
 
 enum StarStickerData {
 
-    static let totalCount = 47
+    static let totalCount = 45
 
     /// No sticker ever shows a permanent "new" badge — newness is transient.
     static let newIds: Set<String> = []
@@ -119,9 +119,8 @@ enum StarStickerData {
         T(id:"frac_king",       cat:.math,     emoji:"👑", label:"Fraction King",      rarity:.epic,   how:"Finish 3 lessons with a perfect score",              xp:150, shimmer:Color(hex:0xFFE066)),
         T(id:"speed_demon",     cat:.math,     emoji:"⚡", label:"Speed Demon",        rarity:.rare,   how:"Nail a lesson with no hints and no wrong answers",   xp:80,  shimmer:Color(hex:0xFFE066)),
         T(id:"numbers_boss",    cat:.math,     emoji:"🎲", label:"Numbers Boss",       rarity:.common, how:"Master 10 stars total",                              xp:60,  shimmer:Color(hex:0xFF8AD8)),
-        T(id:"calc_wizard",     cat:.math,     emoji:"🔮", label:"Calc Wizard",        rarity:.rare,   how:"Earn 500 total XP",                                  xp:100, shimmer:Color(hex:0xA78BFA)),
         T(id:"perfect_score",   cat:.math,     emoji:"✨", label:"Perfect Score",      rarity:.rare,   how:"Finish any lesson without a single wrong answer",    xp:80,  shimmer:Color(hex:0xFFE066)),
-        T(id:"number_cruncher", cat:.math,     emoji:"🖥️", label:"Number Cruncher",    rarity:.epic,   how:"Earn 1000 total XP",                                 xp:150, shimmer:Color(hex:0x5EE7FF)),
+        T(id:"number_cruncher", cat:.math,     emoji:"🖥️", label:"Number Cruncher",    rarity:.epic,   how:"Earn 2000 total XP",                                 xp:150, shimmer:Color(hex:0x5EE7FF)),
         // READING
         T(id:"word_wiz",        cat:.reading,  emoji:"🧙", label:"Word Wizard",        rarity:.rare,   how:"Master the Main Idea and Habitat stars",             xp:100, shimmer:Color(hex:0xA78BFA)),
         T(id:"story_star",      cat:.reading,  emoji:"📚", label:"Story Star",         rarity:.common, how:"Complete 5 lessons total",                           xp:60,  shimmer:Color(hex:0xFFE066)),
@@ -141,7 +140,6 @@ enum StarStickerData {
         T(id:"early_bird",      cat:.streaks,  emoji:"🌅", label:"Early Bird",         rarity:.common, how:"Complete a lesson before 8 AM",                      xp:50,  shimmer:Color(hex:0xFFE066)),
         T(id:"night_owl",       cat:.streaks,  emoji:"🦉", label:"Night Owl",          rarity:.common, how:"Complete a lesson after 9 PM",                       xp:50,  shimmer:Color(hex:0xA78BFA)),
         // EXPLORER
-        T(id:"first_step",      cat:.explorer, emoji:"👣", label:"First Step",         rarity:.common, how:"Complete your very first lesson",                    xp:40,  shimmer:Color(hex:0xFFE066)),
         T(id:"rocket_kid",      cat:.explorer, emoji:"🚀", label:"Rocket Kid",         rarity:.common, how:"Visit your first star",                              xp:50,  shimmer:Color(hex:0x5EE7FF)),
         T(id:"galaxy_voyager",  cat:.explorer, emoji:"🔭", label:"Galaxy Voyager",     rarity:.common, how:"Visit 3 different stars",                            xp:60,  shimmer:Color(hex:0x5EE7FF)),
         T(id:"space_cadet",     cat:.explorer, emoji:"🪐", label:"Space Cadet",        rarity:.rare,   how:"Visit 10 different stars",                           xp:120, shimmer:Color(hex:0xA78BFA)),

@@ -1,0 +1,6 @@
+# Avoid noisy merges on local machine state files.
+.DS_Store binary merge=ours
+**/xcuserdata/** binary merge=ours
+**/*.xcuserstate binary merge=ours
+**/xcdebugger/Breakpoints_v2.xcbkptlist text merge=ours
+
