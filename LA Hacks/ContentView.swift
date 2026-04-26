@@ -18,9 +18,6 @@ struct ContentView: View {
         if !onboarded {
             Onboard()
         } else {
-            Button("Speak 11Labs") {
-                speak11Labs(transcript: "A black hole is a region of spacetime where gravity is so strong, nothing can escape from it, even including light. Black holes exist when spacetime gets very curved an object. Once objects enter the event horizon, it is impossible to escape.")
-            }
             LearningGalaxyView()
                 .onAppear {
                     do {
