@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import AVFoundation
 
 // MARK: - Shared
 
@@ -396,7 +397,7 @@ struct PathsTab: View {
                         .padding(.vertical, 10)
                         .background(
                             LinearGradient(
-                                colors: [p.hue, p.hue.opacity(0.7)],
+                                colors:[p.hue, p.hue.opacity(0.7)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing
                             )
                         )
@@ -705,7 +706,10 @@ struct NovaAITab: View {
         isProcessing = true
         rawOutput = ""
         downloadProgress = 0.0
-
+        
+        var spokenLength = 0
+        synthesizer.stopSpeaking(at: .immediate)
+        
         let context = PipelineContext(
             activeConstellationID: nil,
             activeStarID: nil,
@@ -720,7 +724,23 @@ struct NovaAITab: View {
                 DispatchQueue.main.async { self.downloadProgress = progress }
             },
             onStream: { currentText in
-                DispatchQueue.main.async { self.rawOutput = currentText }
+                DispatchQueue.main.async {
+                    self.rawOutput = currentText
+                    let parsed = self.parsedOutput
+                    if parsed.count > spokenLength {
+                        let newText = String(parsed.dropFirst(spokenLength))
+                        let delimiters = CharacterSet(charactersIn: ".?!\n,:;")
+                        if let range = newText.rangeOfCharacter(from: delimiters, options: .backwards) {
+                            let splitIndex = range.upperBound
+                            let textToSpeak = String(newText[..<splitIndex])
+                            let trimmedText = textToSpeak.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmedText.isEmpty {
+                                speak(transcript: trimmedText)
+                            }
+                            spokenLength += textToSpeak.count
+                        }
+                    }
+                }
             },
             onComplete: { result in
                 DispatchQueue.main.async {
@@ -731,7 +751,16 @@ struct NovaAITab: View {
                     case .modelError:
                         self.rawOutput = "Oops! Nova had a problem: \(result.error?.localizedDescription ?? "unknown error")"
                     case .success:
-                        break 
+                      let parsed = self.parsedOutput
+                       if parsed.count > spokenLength {
+                         let newText = String(parsed.dropFirst(spokenLength))
+                         let trimmedText = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+                         if !trimmedText.isEmpty {
+                             speak(transcript: trimmedText)
+                          }
+                          spokenLength = parsed.count
+                        }
+                        break
                     }
                 }
             }
@@ -1435,7 +1464,7 @@ struct SettingsTab: View {
                                 .foregroundColor(Color(hex: 0x1A0B40))
                                 .padding(.horizontal, 14).padding(.vertical, 10)
                                 .background(
-                                    LinearGradient(colors: [Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing)
+                                    LinearGradient(colors:[Color(hex: 0x5EE7FF), Color(hex: 0xA78BFA)], startPoint: .leading, endPoint: .trailing)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
